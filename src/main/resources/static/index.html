@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面试项目驾驶舱</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+    <header class="app-header">
+        <h1>高并发秒杀系统 - 项目驾驶舱</h1>
+    </header>
+
+    <main class="main-content">
+        <!-- 商品列表区域 -->
+        <div class="product-section">
+            <h2>商品列表</h2>
+            <div class="product-list">
+                <div v-for="product in products" :key="product.id"
+                     class="product-card"
+                     :class="{ selected: selectedProduct && selectedProduct.id === product.id }"
+                     @click="selectProduct(product)">
+                    <img :src="product.imageUrl" :alt="product.name" class="product-image">
+                    <div class="product-info">
+                        <p class="product-name">{{ product.name }}</p>
+                        <p class="product-price">¥ {{ product.price.toFixed(2) }}</p>
+                    </div>
+                </div>
+                 <div v-if="!products.length" class="loading-placeholder">
+                    正在从后端加载商品数据...
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作与详情区域 -->
+        <div class="action-section">
+            <h2>商品详情 & 操作</h2>
+            <div v-if="selectedProduct" class="product-details">
+                <img :src="selectedProduct.imageUrl" :alt="selectedProduct.name" class="detail-image">
+                <h3>{{ selectedProduct.name }}</h3>
+                <p class="detail-description">{{ selectedProduct.description }}</p>
+                <p class="detail-price">价格: <span>¥ {{ selectedProduct.price.toFixed(2) }}</span></p>
+                <p class="detail-stock">剩余库存: <span>{{ selectedProduct.stock }}</span></p>
+                <button @click="createOrder" class="buy-button" :disabled="isSubmitting">
+                    {{ isSubmitting ? '正在下单中...' : '立即购买' }}
+                </button>
+            </div>
+            <div v-else class="no-selection">
+                <p>请从左侧选择一个商品</p>
+            </div>
+
+            <div class="console-output">
+                <h4>后端交互日志:</h4>
+                <div v-if="message" class="message" :class="messageType">
+                    {{ message }}
+                </div>
+                <div v-else class="message-placeholder">
+                    此处将显示操作结果...
+                </div>
+                 <button v-if="message" @click="clearMessage" class="clear-button">清除日志</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 引入 Vue 3 和 Axios -->
+<script src="https://unpkg.com/vue@3"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                products: [],
+                selectedProduct: null,
+                isSubmitting: false,
+                message: '',
+                messageType: 'success' // 'success' or 'error'
+            };
+        },
+        methods: {
+            // 获取商品列表
+            fetchProducts() {
+                // 模拟一个默认的商品列表，防止后端接口还没写好时前端白屏
+                 this.products = [
+                    { id: 1, name: '高性能笔记本电脑', price: 9999.00, stock: 10, description: '最新款处理器，超长续航，为专业人士打造。', imageUrl: 'https://via.placeholder.com/150/007BFF/FFFFFF?text=Laptop' },
+                    { id: 2, name: '机械键盘', price: 899.00, stock: 5, description: '茶轴，RGB背光，带来极致的打字体验。', imageUrl: 'https://via.placeholder.com/150/28A745/FFFFFF?text=Keyboard' },
+                    { id: 3, name: '4K显示器', price: 2499.00, stock: 20, description: '27英寸IPS屏幕，色彩精准，视觉效果震撼。', imageUrl: 'https://via.placeholder.com/150/FFC107/000000?text=Monitor' }
+                ];
+
+                axios.get('/api/product/list')
+                    .then(response => {
+                        // 为了演示效果，这里给后端拿到的数据也配上图片
+                        if(response.data && response.data.length) {
+                             this.products = response.data.map(p => ({
+                                ...p,
+                                imageUrl: `https://via.placeholder.com/150/${Math.floor(Math.random()*16777215).toString(16)}/FFFFFF?text=Product`
+                             }));
+                        }
+                    })
+                    .catch(error => {
+                        console.error("获取商品列表失败!", error);
+                        this.showMessage("后端接口连接失败，请检查后端服务是否启动，并使用了正确的API路径 /api/product/list。", 'error');
+                    });
+            },
+            // 选择商品
+            selectProduct(product) {
+                this.selectedProduct = product;
+                this.clearMessage();
+            },
+            // 创建订单
+            createOrder() {
+                if (!this.selectedProduct) return;
+
+                this.isSubmitting = true;
+                this.showMessage('正在向后端 /api/order/create 发送请求...', 'info');
+
+                // 注意：这里我们只发送 productId，符合后端接口设计
+                axios.post('/api/order/create', { productId: this.selectedProduct.id, quantity: 1 })
+                    .then(response => {
+                        this.showMessage(`订单创建成功！订单号: ${response.data.orderSn}`, 'success');
+                        // 成功后刷新一下商品库存
+                        this.fetchProducts();
+                    })
+                    .catch(error => {
+                        if (error.response) {
+                            // 后端返回了具体的业务错误信息
+                            this.showMessage(`下单失败: ${error.response.data.message || '未知错误'}`, 'error');
+                        } else {
+                            this.showMessage("下单请求失败，请检查后端服务和 /api/order/create 接口。", 'error');
+                        }
+                    })
+                    .finally(() => {
+                        this.isSubmitting = false;
+                    });
+            },
+            showMessage(msg, type = 'success') {
+                this.message = msg;
+                this.messageType = type;
+            },
+            clearMessage() {
+                this.message = '';
+            }
+        },
+        // 应用加载完毕后执行
+        mounted() {
+            this.fetchProducts();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>

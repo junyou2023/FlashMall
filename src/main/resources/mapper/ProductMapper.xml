@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.ProductMapper">
+
+    <!-- 查询全部商品 -->
+    <select id="findAll" resultType="Product">
+        SELECT id, name, price, stock
+        FROM product
+    </select>
+
+    <!-- 根据 id 查询一个商品 -->
+    <select id="findById" parameterType="long" resultType="Product">
+        SELECT id, name, price, stock
+        FROM product
+        WHERE id = #{id}
+    </select>
+
+    <!--
+    新方法：原子扣减库存
+
+    这条 SQL 的关键思想是：
+    1. 不再先查库存再在 Java 里算
+    2. 而是直接让数据库自己做判断和扣减
+
+    逻辑：
+    - 只有当当前 stock >= quantity 时，才允许扣减
+    - 并且 stock = stock - quantity 是数据库原子完成的
+    - 如果条件不满足，影响行数 = 0，调用方就知道“扣减失败”
+
+    这就是你当前项目最适合落地的“乐观锁式库存扣减”
+    -->
+    <update id="deductStock">
+        UPDATE product
+        SET stock = stock - #{quantity}
+        WHERE id = #{id}
+          AND stock >= #{quantity}
+    </update>
+
+</mapper>

@@ -1,0 +1,239 @@
+/* 全局样式 */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f4f5f7;
+    color: #333;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* 头部样式 */
+.app-header {
+    background-color: #fff;
+    padding: 15px 30px;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    text-align: center;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.5em;
+    color: #0056b3;
+}
+
+/* 主内容区 */
+.main-content {
+    display: flex;
+    flex: 1;
+    padding: 20px;
+    gap: 20px;
+    overflow: hidden;
+}
+
+.product-section {
+    flex: 2;
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow-y: auto;
+}
+
+.action-section {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    color: #333;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+}
+
+/* 商品列表 */
+.product-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.product-card {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.product-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-5px);
+}
+
+.product-card.selected {
+    border: 2px solid #007bff;
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+}
+
+.product-image {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 6px;
+    background-color: #f0f0f0; 
+}
+
+.product-info p {
+    margin: 8px 0 0;
+}
+
+.product-name {
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.product-price {
+    color: #e44d26;
+    font-size: 1em;
+    font-weight: bold;
+}
+.loading-placeholder {
+    color: #888;
+    font-style: italic;
+}
+
+/* 详情和操作区 */
+.action-section h2 {
+    margin-bottom: 20px;
+}
+
+.product-details .detail-image {
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto 15px;
+    display: block;
+    border-radius: 8px;
+}
+
+.product-details h3 {
+    text-align: center;
+    margin-bottom: 15px;
+    font-size: 1.4em;
+}
+
+.detail-description {
+    font-size: 0.95em;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.detail-price, .detail-stock {
+    font-size: 1.1em;
+    margin: 10px 0;
+}
+
+.detail-price span {
+    color: #e44d26;
+    font-weight: bold;
+    font-size: 1.3em;
+}
+
+.detail-stock span {
+    font-weight: bold;
+    color: #28a745;
+}
+
+.buy-button {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.buy-button:hover {
+    background-color: #0056b3;
+}
+
+.buy-button:disabled {
+    background-color: #a0a0a0;
+    cursor: not-allowed;
+}
+
+.no-selection p {
+    text-align: center;
+    color: #888;
+    margin-top: 50px;
+    font-style: italic;
+}
+
+/* 日志输出 */
+.console-output {
+    margin-top: 30px;
+    border-top: 1px dashed #ccc;
+    padding-top: 15px;
+}
+.console-output h4 {
+    margin:0 0 10px 0;
+    color:#555;
+}
+.message {
+    padding: 12px;
+    border-radius: 5px;
+    font-size: 0.95em;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+.message.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.message.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+.message-placeholder{
+    color: #999;
+    font-size: 0.9em;
+}
+.clear-button{
+    margin-top: 10px;
+    padding: 5px 10px;
+    font-size: 0.8em;
+    background: #ccc;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.clear-button:hover{
+    background: #bbb;
+}

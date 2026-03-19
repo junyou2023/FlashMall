@@ -1,0 +1,31 @@
+# ======================== Spring Boot 基础配置 ========================
+spring:
+  # ---------- 数据源配置（MySQL） ----------
+  datasource:
+    url: jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 【新增】缓存链路第 2 环：Redis 连接参数
+  # 有了依赖 + 这份配置，自动装配才能真正建立 RedisConnectionFactory
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: your_password  # 如果你本地 Redis 有密码再打开
+
+  # 【新增】缓存链路第 3.5 环：指定 Spring Cache 的底层实现
+  # 否则 Spring 可能不会使用 Redis 作为缓存提供者
+  cache:
+    type: redis
+
+# ======================== MyBatis 配置 ========================
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.demo.model
+
+# ======================== 可选：调试日志（需要时再开） ========================
+#logging:
+#  level:
+#    com.example.demo: DEBUG

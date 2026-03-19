@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+【Spring Boot 入门第 5 课】MyBatis XML 映射文件 - SQL 到底是怎么执行的
+
+============================================================================
+问题 1：这个 XML 文件是干什么的？
+============================================================================
+作用：把 SQL 语句和 Java 方法关联起来
+
+传统 DAO 写法（麻烦）：
+public class ProductDaoImpl implements ProductDao {
+    public Product findById(Long id) {
+        Connection conn = DriverManager.getConnection(...);
+        PreparedStatement ps = conn.prepareStatement(
+            "SELECT * FROM product WHERE id = ?"
+        );
+        ps.setLong(1, id);
+        ResultSet rs = ps.executeQuery();
+        // ... 至少 20 行模板代码
+    }
+}
+
+MyBatis 写法（简洁）：
+- Java 接口：定义方法签名
+- XML 文件：写 SQL 语句
+- MyBatis 自动关联并执行
+
+============================================================================
+问题 2：<mapper namespace=""> 是什么？
+============================================================================
+namespace：命名空间，必须等于 Mapper 接口的全限定名
+
+作用：
+1. MyBatis 通过 namespace 找到对应的 Java 接口
+2. 建立"XML 文件 ←→ Java 接口"的映射关系
+
+例如：
+namespace="com.example.demo.mapper.ProductMapper"
+
+当调用 productMapper.findById(1L) 时：
+  ↓
+MyBatis 找 namespace="com.example.demo.mapper.ProductMapper"
+  ↓
+找 id="findById" 的 SQL 标签
+  ↓
+执行 SQL，传入参数 id=1
+
+============================================================================
+问题 3：<select>、<update>、<insert>、<delete> 有什么区别？
+============================================================================
+<select>：查询语句，返回值是结果集
+<update>：更新语句，返回值是受影响行数
+<insert>：插入语句，返回值是自增主键或受影响行数
+<delete>：删除语句，返回值是受影响行数
+
+关键区别：
+- <select> 不会自动提交事务（需要手动 commit 或 Spring 管理）
+- <update>/<insert>/<delete> 默认会自动提交（但 Spring 事务会接管）
+
+============================================================================
+问题 4：resultType 和 parameterType 是什么？
+============================================================================
+parameterType：输入参数的类型（可以省略，MyBatis 能推断）
+resultType：输出结果的类型（必须指定）
+
+例如：
+<select id="findById" parameterType="long" resultType="Product">
+              ↑                              ↑
+         输入参数是 Long                输出结果是 Product
+
+parameterType 可以省略的原因：
+MyBatis 会根据 Mapper 接口的方法签名推断
+Product findById(@Param("id") Long id)
+                    ↑
+               从这里推断出参数类型是 Long
+
+resultType 不能省略的原因：
+MyBatis 需要知道把 SQL 结果映射成哪个 Java 类
+
+============================================================================
+问题 5：#{id} 和 ${id} 有什么区别？（⭐面试高频）
+============================================================================
+#{}：预编译处理（PreparedStatement），安全
+${}：字符串替换，不安全（有 SQL 注入风险）
+
+执行过程对比：
+
+使用 #{id}：
+SQL: SELECT * FROM product WHERE id = ?
+参数：[1]
+最终：PreparedStatement 执行，id=1 作为参数传入
+优点：防止 SQL 注入
+
+使用 ${id}：
+SQL: SELECT * FROM product WHERE id = ${id}
+参数：[1]
+最终：直接字符串替换 → WHERE id = 1
+缺点：如果 id 是用户输入的 "1 OR 1=1"，就会 SQL 注入
+
+面试标准答案：
+Q: #{}和${}有什么区别？
+A: 
+   - #{}是预编译，会把参数用?占位，然后传给 PreparedStatement，安全
+   - ${}是直接字符串替换，有 SQL 注入风险
+   - 99% 的场景都用#{}，只有动态表名/排序字段才用${}
+
+============================================================================
+问题 6：MyBatis 是如何把数据库字段映射到 Java 属性的？
+============================================================================
+自动映射规则：下划线转驼峰
+
+数据库字段       Java 属性
+product_id   →   productId
+user_name    →   userName
+create_time  →   createTime
+
+你的 Product 实体类：
+public class Product {
+    private Long id;
+    private String name;
+    private double price;
+    private int stock;
+}
+
+数据库表结构：
+CREATE TABLE product (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR(100),
+    price DECIMAL(10,2),
+    stock INT
+);
+
+字段名完全一致，MyBatis 自动映射！
+
+如果字段名不一致怎么办？
+方案 1：在 SQL 中起别名
+<select id="findByUserId" resultType="Product">
+    SELECT user_id AS userId, product_name AS productName FROM product
+</select>
+
+方案 2：用<resultMap>显式映射
+<resultMap id="ProductMap" type="Product">
+    <id property="userId" column="user_id"/>
+    <result property="productName" column="product_name"/>
+</resultMap>
+-->
+
+<mapper namespace="com.example.demo.mapper.ProductMapper">
+
+    <!-- 
+    【SQL 语句 1】查询全部商品
+    
+    对应 Java 方法：List<Product> findAll()
+    
+    执行流程：
+    1. MyBatis 执行这条 SQL
+    2. 拿到结果集（ResultSet）
+    3. 遍历每一行数据
+    4. 把每一行映射成一个 Product 对象
+       - 从结果集取"id"列 → 调用 product.setId()
+       - 从结果集取"name"列 → 调用 product.setName()
+       - 从结果集取"price"列 → 调用 product.setPrice()
+       - 从结果集取"stock"列 → 调用 product.setStock()
+    5. 把所有 Product 对象放入 List
+    6. 返回 List
+    
+    resultType="Product"：
+    - 为什么不用写全限定名？
+    - 因为在 application.yml 中配置了：
+      mybatis.type-aliases-package=com.example.demo.model
+    - MyBatis 会自动扫描这个包下的所有类
+    -->
+    <select id="findAll" resultType="Product">
+        SELECT id, name, price, stock
+        FROM product
+    </select>
+
+    <!-- 
+    【SQL 语句 2】根据 ID 查询单个商品
+    
+    对应 Java 方法：Product findById(@Param("id") Long id)
+    
+    参数传递：
+    - 当你调用 findById(1L) 时
+    - MyBatis 把参数 1 传给这个 SQL
+    - #{id} 会被替换成?（预编译占位符）
+    - 然后执行 PreparedStatement.setLong(1, 1)
+    
+    parameterType="long"：
+    - 这个其实可以省略
+    - MyBatis 能从方法签名推断：Product findById(@Param("id") Long id)
+    
+    返回值处理：
+    - 如果找到 id=1 的商品 → 返回 Product 对象
+    - 如果没找到 → 返回 null（不是空对象，也不是 Optional）
+    -->
+    <select id="findById" parameterType="long" resultType="Product">
+        SELECT id, name, price, stock
+        FROM product
+        WHERE id = #{id}
+    </select>
+
+    <!-- 
+    【SQL 语句 3】更新库存
+    
+    对应 Java 方法：int updateStock(@Param("id") Long id, @Param("stock") int stock)
+    
+    执行流程：
+    1. 当你调用 updateStock(1L, 99) 时
+    2. MyBatis 执行这条 UPDATE 语句
+    3. 把参数 id=1, stock=99 传给 SQL
+    4. 数据库执行更新
+    5. 返回受影响的行数
+    
+    返回值判断：
+    - 如果 id=1 存在 → 更新成功 → 返回 1
+    - 如果 id=1 不存在 → 没有记录被更新 → 返回 0
+    
+    使用场景（在 OrderService 中）：
+    int updatedRows = productMapper.updateStock(productId, newStock);
+    if (updatedRows != 1) {
+        throw new RuntimeException("扣减库存失败");
+    }
+    
+    为什么不用<update>标签的 useGeneratedKeys？
+    - useGeneratedKeys 用于 insert，获取自增主键
+    - update 不需要，因为只是修改已有记录
+    -->
+    <update id="updateStock">
+        UPDATE product
+        SET stock = #{stock}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

@@ -23,6 +23,13 @@ public class OrderService {
     private final AsyncDeleteService asyncDeleteService;
     private final RedisStockService redisStockService;
     private final RedisOrderGuardService redisOrderGuardService;
+    private final RedisLockService redisLockService;
+
+    /**
+     * 当前阶段演示锁 TTL：10 秒
+     * demo 项目足够用
+     */
+    private static final long ORDER_LOCK_TTL_SECONDS = 10L;
 
     public OrderService(OrderMapper orderMapper,
                         OrderItemMapper orderItemMapper,
@@ -30,7 +37,8 @@ public class OrderService {
                         ProductCacheService productCacheService,
                         AsyncDeleteService asyncDeleteService,
                         RedisStockService redisStockService,
-                        RedisOrderGuardService redisOrderGuardService) {
+                        RedisOrderGuardService redisOrderGuardService,
+                        RedisLockService redisLockService) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.productMapper = productMapper;
@@ -38,35 +46,56 @@ public class OrderService {
         this.asyncDeleteService = asyncDeleteService;
         this.redisStockService = redisStockService;
         this.redisOrderGuardService = redisOrderGuardService;
+        this.redisLockService = redisLockService;
     }
 
     @Transactional
     public Long placeOrder(Long userId, Long productId, int quantity, String requestId) {
 
-        /**
-         * 第 0 步：基础参数校验
-         */
         if (requestId == null || requestId.isBlank()) {
             throw new RuntimeException("requestId 不能为空");
         }
 
         /**
-         * 第 1 步：先做一人一单校验
+         * 第 1 步：先抢“用户 + 商品”维度的分布式锁
          *
-         * 为什么放最前面？
-         * 因为如果这个用户已经成功买过了，
-         * 就没必要再去做后面的 Redis 预扣、MySQL 扣减、写订单。
+         * 为什么是这个粒度？
+         * 因为我们要解决的问题是：
+         * 同一个用户对同一个商品，在并发时只能有一个请求进入下单主流程。
+         */
+        String orderLockKey = redisLockService.buildOrderLockKey(userId, productId);
+        String lockValue = redisLockService.tryLock(orderLockKey, ORDER_LOCK_TTL_SECONDS);
+
+        if (lockValue == null) {
+            throw new RuntimeException("请求过于频繁，请勿重复操作");
+        }
+
+        /**
+         * 注意：
+         * 这里不能在方法 finally 里立刻解锁。
+         *
+         * 因为当前方法有 @Transactional，
+         * 方法返回时事务可能还没真正 commit。
+         *
+         * 所以更严谨的做法是：
+         * 让锁一直持有到事务完成（提交或回滚）再释放。
+         */
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                redisLockService.unlock(orderLockKey, lockValue);
+            }
+        });
+
+        /**
+         * 第 2 步：一人一单校验
          */
         if (redisOrderGuardService.hasOrdered(userId, productId)) {
             throw new RuntimeException("一人一单限制：你已经购买过该商品");
         }
 
         /**
-         * 第 2 步：再做幂等标记抢占
-         *
-         * 为什么它和“一人一单”不是一回事？
-         * - 一人一单：业务规则（用户维度）
-         * - 幂等标记：系统防重（请求维度）
+         * 第 3 步：幂等标记
          */
         boolean idempotentLocked = redisOrderGuardService.tryMarkIdempotent(requestId);
         if (!idempotentLocked) {
@@ -74,19 +103,16 @@ public class OrderService {
         }
 
         /**
-         * 第 3 步：Redis 预扣库存
-         * 让高并发入口先由 Redis 快速裁决
+         * 第 4 步：Redis 预扣库存
          */
         long redisResult = redisStockService.tryDeductStock(productId, quantity);
 
         if (redisResult == -2) {
-            // 库存未预热，当前阶段直接报错最清楚
             redisOrderGuardService.clearIdempotent(requestId);
             throw new RuntimeException("Redis 库存未预热，暂无法下单");
         }
 
         if (redisResult == -1) {
-            // Redis 判断库存不足
             redisOrderGuardService.clearIdempotent(requestId);
             throw new RuntimeException("库存不足（Redis 预扣失败）");
         }
@@ -95,7 +121,7 @@ public class OrderService {
 
         try {
             /**
-             * 第 4 步：查商品（拿价格、校验存在）
+             * 第 5 步：查商品信息
              */
             Product product = productMapper.findById(productId);
             if (product == null) {
@@ -103,10 +129,7 @@ public class OrderService {
             }
 
             /**
-             * 第 5 步：MySQL 最终真相裁决
-             *
-             * 即使 Redis 预扣成功，这里仍然要让 MySQL 做最终扣减，
-             * 因为 MySQL 才是库存真相源。
+             * 第 6 步：MySQL 最终真相裁决
              */
             int affected = productMapper.deductStock(productId, quantity);
             if (affected == 0) {
@@ -114,7 +137,7 @@ public class OrderService {
             }
 
             /**
-             * 第 6 步：创建订单主表
+             * 第 7 步：写订单主表
              */
             double totalPrice = product.getPrice() * quantity;
 
@@ -130,7 +153,7 @@ public class OrderService {
             }
 
             /**
-             * 第 7 步：创建订单明细
+             * 第 8 步：写订单明细
              */
             OrderItem item = new OrderItem();
             item.setOrderId(order.getId());
@@ -144,23 +167,16 @@ public class OrderService {
             }
 
             /**
-             * 第 8 步：事务提交后处理
-             *
-             * 这里做两件事：
-             * 1. 删除商品缓存（前一层你已经补过）
-             * 2. 订单成功后，写入“一人一单”标记
-             *
-             * 为什么放到 afterCommit？
-             * 因为只有事务真正提交成功，这笔订单才算真正成立。
+             * 第 9 步：事务提交后做善后动作
+             * - 删商品缓存
+             * - 延迟双删
+             * - 记录一人一单成功标记
              */
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    // 8.1 删除商品相关缓存
                     productCacheService.evictAfterProductChanged(productId);
                     asyncDeleteService.delayedDeleteProductCache(productId, 200);
-
-                    // 8.2 记录“一人一单”成功标记
                     redisOrderGuardService.markOrdered(userId, productId);
                 }
             });
@@ -169,10 +185,7 @@ public class OrderService {
 
         } catch (RuntimeException e) {
             /**
-             * 第 9 步：失败补偿
-             *
-             * 只要 Redis 已经预扣成功，后面失败就要回补 Redis。
-             * 同时清理幂等标记，让后续用户可以重新发起请求。
+             * 第 10 步：失败补偿
              */
             if (redisDeductSuccess) {
                 redisStockService.rollbackStock(productId, quantity);

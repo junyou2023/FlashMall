@@ -4,6 +4,7 @@ package com.example.demo.controller;
 import com.example.demo.model.Product;
 import com.example.demo.service.RedisDataTypeService;
 import com.example.demo.service.ProductService;
+import com.example.demo.service.ProductCacheService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,6 +77,7 @@ public class ProductController {
     // 注意：用 final 修饰，保证不会为 null，且只能被赋值一次
     private final ProductService productService;
     private final RedisDataTypeService redisDataTypeService;
+    private final ProductCacheService productCacheService;
 
     /**
      * 【重要】构造函数注入
@@ -88,9 +90,10 @@ public class ProductController {
      * Q: Spring 是如何注入依赖的？
      * A: 通过反射调用构造函数
      */
-    public ProductController(ProductService productService, RedisDataTypeService redisDataTypeService) {
+    public ProductController(ProductService productService, RedisDataTypeService redisDataTypeService, ProductCacheService productCacheService) {
         this.productService = productService;
         this.redisDataTypeService = redisDataTypeService;
+        this.productCacheService = productCacheService;
     }
 
     /**
@@ -161,7 +164,7 @@ public class ProductController {
      */
     @PostMapping("/{id}/evict")
     public void evictProductCache(@PathVariable Long id) {
-        productService.evictProductCache(id);
+        productCacheService.evictAfterProductChanged(id);
     }
 
     /**
@@ -172,6 +175,6 @@ public class ProductController {
      */
     @PostMapping("/products/{id}/evict")
     public void evictProductCache2(@PathVariable Long id) {
-        productService.evictProductCache(id);
+        productCacheService.evictAfterProductChanged(id);
     }
 }

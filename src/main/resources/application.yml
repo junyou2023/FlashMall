@@ -20,6 +20,17 @@ spring:
   cache:
     type: redis
 
+  # ---------- RabbitMQ 连接配置 ----------
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    # 消息序列化：让 Java 对象自动转成 JSON 发送
+    template:
+      default-receive-queue: order.create.queue
+
 # ======================== MyBatis 配置 ========================
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -27,5 +38,50 @@ mybatis:
 
 # ======================== 可选：调试日志（需要时再开） ========================
 #logging:
-#  level:
+#  level:------- SEARCH
+import org.springframework.amqp.core.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+=======
+import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
++++++++ REPLACE
+
+---
+
+------- SEARCH
+    @Bean
+    public Binding orderCreateBinding() {
+        return BindingBuilder
+                .bind(orderCreateQueue())
+                .to(orderExchange())
+                .with(ORDER_ROUTING_KEY);
+    }
+}
+=======
+    @Bean
+    public Binding orderCreateBinding() {
+        return BindingBuilder
+                .bind(orderCreateQueue())
+                .to(orderExchange())
+                .with(ORDER_ROUTING_KEY);
+    }
+
+    /**
+     * 消息序列化方式：用 JSON
+     *
+     * 默认是 Java 二进制序列化，不可读且易报错。
+     * 配置成 JSON 后：
+     * - 生产者自动把 OrderCreateMessage 转成 JSON 字符串发送
+     * - 消费者自动把 JSON 字符串反序列化回 OrderCreateMessage
+     */
+    @Bean
+    public MessageConverter jsonMessageConverter() {
+        return new Jackson2JsonMessageConverter();
+    }
+}
++++++++ REPLACE
 #    com.example.demo: DEBUG

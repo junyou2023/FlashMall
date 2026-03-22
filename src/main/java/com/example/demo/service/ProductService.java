@@ -17,6 +17,7 @@ public class ProductService {
 
     private final ProductMapper productMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ProductCacheService productCacheService;
 
     @Value("${app.cache.product-ttl-seconds:300}")
     private long productTtlSeconds;
@@ -63,9 +64,11 @@ public class ProductService {
     );
 
     public ProductService(ProductMapper productMapper,
-                          RedisTemplate<String, Object> redisTemplate) {
+                          RedisTemplate<String, Object> redisTemplate,
+                          ProductCacheService productCacheService) {
         this.productMapper = productMapper;
         this.redisTemplate = redisTemplate;
+        this.productCacheService = productCacheService;
     }
 
     /**
@@ -74,6 +77,14 @@ public class ProductService {
      */
     public List<Product> getAllProducts() {
         return productMapper.findAll();
+    }
+
+    /**
+     * 为Controller提供缓存清除功能
+     * @param id 商品ID
+     */
+    public void evictProductCache(Long id) {
+        productCacheService.evictAfterProductChanged(id);
     }
 
     /**

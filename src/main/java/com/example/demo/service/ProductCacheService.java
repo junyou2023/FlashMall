@@ -1,26 +1,53 @@
 // src/main/java/com/example/demo/service/ProductCacheService.java
 package com.example.demo.service;
 
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
 
 @Service
 public class ProductCacheService {
 
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    public ProductCacheService(RedisTemplate<String, Object> redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
     /**
-     * 删除某个商品详情缓存
+     * 商品详情缓存 key（必须和 ProductService 保持一致）
      *
-     * cacheNames = "product:detail"
-     * key = "#productId"
+     * 为什么这里要手写 key？
+     * 因为：
+     * 1. ProductService 用的是 redisTemplate 手写缓存
+     * 2. 如果我用 @CacheEvict，Spring Cache 会按自己的规则拼接 key（双冒号）
+     * 3. 那样会导致“写的 key”和“删的 key”不一致
      *
-     * 对应 Redis 里大致会删掉：
-     *   product:detail::1
+     * 所以最稳妥的方式：
+     * - 统一用一套手写的 key 生成规则
+     * - 保证写和删操作的是同一个 Redis key
      */
-    @CacheEvict(cacheNames = "product:detail", key = "#productId")
+    private String productDetailKey(Long productId) {
+        return "product:detail:" + productId;
+    }
+
+    /**
+     * 删除某个商品详情缓存（直接操作 Redis）
+     *
+     * 为什么不使用 @CacheEvict？
+     * 因为 Spring Cache 的 key 拼接规则和手写的不一致，
+     * 会导致“以为删了，实际上没删到”。
+     */
     public void evictProductDetail(Long productId) {
-        // 方法体可以为空
-        // 因为真正的删除动作由 Spring Cache 代理帮你完成
-        System.out.println("【删除缓存】商品详情缓存被删除，productId = " + productId);
+        String key = productDetailKey(productId);
+        Boolean deleted = redisTemplate.delete(key);
+        
+        if (Boolean.TRUE.equals(deleted)) {
+            System.out.println("【删除缓存】商品详情缓存已删除，key = " + key);
+        } else {
+            System.out.println("【删除缓存】商品详情缓存不存在，key = " + key);
+        }
     }
 
     /**
@@ -32,9 +59,12 @@ public class ProductCacheService {
      * 为什么列表也要删？
      * 因为商品库存变化后，列表页里展示的库存/状态也可能过期。
      */
-    @CacheEvict(cacheNames = "product:list", allEntries = true)
     public void evictProductList() {
-        System.out.println("【删除缓存】商品列表缓存被删除");
+        // 简单方案：直接删整个 pattern
+        // 生产环境可以用 scan + delete 分批处理
+        String pattern = "product:list*";
+        redisTemplate.delete(pattern);
+        System.out.println("【删除缓存】商品列表缓存已删除，pattern = " + pattern);
     }
 
     /**

@@ -1,0 +1,15 @@
+graph LR
+    A[客户端] --> B[OrderController]
+    B --> C[OrderGatewayService]
+    C --> D{Redis 校验}
+    D --> E[RedisLockService: 分布式锁]
+    D --> F[RedisOrderGuardService: 一人一单/PENDING]
+    D --> G[RedisStockService: 预扣库存]
+    D --> H[Idempotent: 幂等校验]
+    C --> I[RabbitMQ 消息队列]
+    I --> J[OrderMessageConsumer]
+    J --> K[OrderConsumerService]
+    K --> L[(MySQL)]
+    K --> M[RedisOrderGuardService: 写SUCCESS]
+    K --> N[ProductCacheService: 清缓存]
+    K --> O[AsyncDeleteService: 延迟双删]

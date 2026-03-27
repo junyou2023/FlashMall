@@ -7,16 +7,12 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # 【新增】缓存链路第 2 环：Redis 连接参数
-  # 有了依赖 + 这份配置，自动装配才能真正建立 RedisConnectionFactory
+  # 【缓存链路第 2 环】Redis 连接参数
   data:
     redis:
       host: localhost
       port: 6379
-      # password: your_password  # 如果你本地 Redis 有密码再打开
 
-  # 【新增】缓存链路第 3.5 环：指定 Spring Cache 的底层实现
-  # 否则 Spring 可能不会使用 Redis 作为缓存提供者
   cache:
     type: redis
 
@@ -27,61 +23,28 @@ spring:
     username: guest
     password: guest
     virtual-host: /
-    # 消息序列化：让 Java 对象自动转成 JSON 发送
+
     template:
       default-receive-queue: order.create.queue
 
-# ======================== MyBatis 配置 ========================
+    # 【关键新增】Publisher Confirm
+    publisher-confirm-type: correlated
+
+    # 【关键新增】Publisher Returns
+    publisher-returns: true
+
+    # 【关键新增】消费者手动 ACK
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-interval: 10000
+          multiplier: 2.0
+          max-attempts: 3
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.example.demo.model
-
-# ======================== 可选：调试日志（需要时再开） ========================
-#logging:
-#  level:------- SEARCH
-import org.springframework.amqp.core.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-=======
-import org.springframework.amqp.core.*;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.amqp.support.converter.MessageConverter;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-+++++++ REPLACE
-
----
-
-------- SEARCH
-    @Bean
-    public Binding orderCreateBinding() {
-        return BindingBuilder
-                .bind(orderCreateQueue())
-                .to(orderExchange())
-                .with(ORDER_ROUTING_KEY);
-    }
-}
-=======
-    @Bean
-    public Binding orderCreateBinding() {
-        return BindingBuilder
-                .bind(orderCreateQueue())
-                .to(orderExchange())
-                .with(ORDER_ROUTING_KEY);
-    }
-
-    /**
-     * 消息序列化方式：用 JSON
-     *
-     * 默认是 Java 二进制序列化，不可读且易报错。
-     * 配置成 JSON 后：
-     * - 生产者自动把 OrderCreateMessage 转成 JSON 字符串发送
-     * - 消费者自动把 JSON 字符串反序列化回 OrderCreateMessage
-     */
-    @Bean
-    public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
-}
-+++++++ REPLACE
-#    com.example.demo: DEBUG

@@ -1,6 +1,8 @@
 package com.example.demo.config;
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -90,4 +92,74 @@ public class RabbitMQConfig {
     public MessageConverter jsonMessageConverter() {
         return new Jackson2JsonMessageConverter();
     }
+
+    // ===== 手动 ACK 本轮新增开始 =====
+
+    /**
+     * 手动 ACK 监听容器工厂
+     *
+     * 为什么这一轮要新增它？
+     *
+     * 因为默认情况下，@RabbitListener 往往是自动 ACK。
+     * 自动 ACK 的问题是：
+     * 只要消息一投递到消费者，RabbitMQ 就可能认为“这条消息已经处理完了”。
+     *
+     * 但真实业务里：
+     * - 订单还没真正落库
+     * - MySQL 事务可能还没提交
+     * - Redis 状态可能还没补偿完成
+     *
+     * 所以这一轮我们把 ACK 时机改成：
+     * “业务真的成功后，再由代码显式 ack”
+     */
+    @Bean
+    public SimpleRabbitListenerContainerFactory manualAckRabbitListenerContainerFactory(
+            ConnectionFactory connectionFactory,
+            MessageConverter messageConverter
+    ) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+
+        /**
+         * 继续沿用 JSON 消息转换器
+         * 这样消费者方法里仍然可以直接拿到 OrderCreateMessage
+         */
+        factory.setMessageConverter(messageConverter);
+
+        /**
+         * 改成手动 ACK
+         *
+         * 这就是这一轮的核心配置。
+         * 后面由消费者代码自己决定：
+         * - 什么时候 basicAck
+         * - 什么时候 basicNack
+         * - 什么时候 basicReject
+         */
+        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+
+        /**
+         * prefetch = 1
+         *
+         * 当前阶段先故意保守一点：
+         * 一次先让一个消费者拿 1 条未确认消息。
+         *
+         * 好处：
+         * - 便于你观察“收到消息 -> 落库 -> ACK”的完整链路
+         * - 避免一下子压很多未确认消息，调试更清晰
+         *
+         * 后续如果进入“并发消费调优”阶段，再放大。
+         */
+        factory.setPrefetchCount(1);
+
+        /**
+         * 这里先不依赖 Spring 帮你自动重回队列，
+         * 因为这一轮我们要把“成功 / 失败 / 重试”时机
+         * 显式写在消费者代码里，方便你真正理解 ACK 的控制权。
+         */
+        factory.setDefaultRequeueRejected(false);
+
+        return factory;
+    }
+
+    // ===== 手动 ACK 本轮新增结束 =====
 }

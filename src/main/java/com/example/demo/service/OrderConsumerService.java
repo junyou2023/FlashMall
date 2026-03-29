@@ -55,6 +55,35 @@ public class OrderConsumerService {
     public void createOrder(Long userId, Long productId, int quantity, String requestId) {
 
         try {
+            // ===== 手动 ACK 本轮新增开始 =====
+
+            /**
+             * 第 0 步：消费幂等短路
+             *
+             * 为什么这一轮要补这一步？
+             *
+             * 因为手动 ACK 只保证“至少一次投递”，
+             * 不保证“只消费一次”。
+             *
+             * 典型风险场景：
+             * - MySQL 其实已经提交成功
+             * - 但消费者在 ACK 之前宕机
+             * - RabbitMQ 认为你没确认，于是再次投递
+             *
+             * 如果没有这一步，消费者可能重复创建订单。
+             *
+             * 所以现在先查 requestId 的幂等状态：
+             * - 如果已经是 DONE，直接短路返回
+             * - 等外层消费者去 ACK
+             */
+            String idempotentStatus = redisOrderGuardService.getIdempotentStatus(requestId);
+            if ("DONE".equals(idempotentStatus)) {
+                System.out.println("【消费幂等短路】requestId 已处理完成，直接返回，requestId = " + requestId);
+                return;
+            }
+
+            // ===== 手动 ACK 本轮新增结束 =====
+
             /**
              * 第 1 步：查商品（拿价格、校验存在）
              */
@@ -118,6 +147,8 @@ public class OrderConsumerService {
                     redisOrderGuardService.markSuccess(userId, productId);
 
                     // 5.2 幂等状态改成 DONE
+                    // 【这一步在手动 ACK 之后变得更关键】
+                    // 因为后续如果消息再次投递，消费者会先读取这个 DONE 状态来短路
                     redisOrderGuardService.markIdempotentDone(requestId);
 
                     // 5.3 删除商品缓存（库存已经变化）

@@ -1,7 +1,8 @@
-package com.example.demo.controller;
+package com.example.demo.lab.controller;
 
-import com.example.demo.service.ThreadPoolLabService;
+import com.example.demo.lab.service.ThreadPoolLabService;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,8 +19,12 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * 这不是正式业务接口，
  * 而是为了当前阶段验证线程池行为而加的实验入口。
+ *
+ * 【本轮改动】
+ * 只在 perf 环境暴露，避免 dev/prod 环境误用实验接口。
  */
 @RestController
+@Profile("perf")
 public class ThreadPoolLabController {
 
     private final ThreadPoolLabService threadPoolLabService;
@@ -48,6 +53,12 @@ public class ThreadPoolLabController {
         result.put("completedTaskCount", executor.getCompletedTaskCount());
         result.put("taskCount", executor.getTaskCount());
         result.put("largestPoolSize", executor.getLargestPoolSize());
+
+        /**
+         * 【本轮改动】
+         * 增加实验计数器，便于判断是否触发 CallerRunsPolicy。
+         */
+        result.put("labCounters", threadPoolLabService.snapshotCounters());
         return result;
     }
 
@@ -76,6 +87,7 @@ public class ThreadPoolLabController {
 
         for (int i = 0; i < taskCount; i++) {
             String taskId = UUID.randomUUID().toString();
+            threadPoolLabService.recordSubmit();
             threadPoolLabService.submitDummyTask(taskId, sleepMillis);
         }
 
@@ -90,6 +102,7 @@ public class ThreadPoolLabController {
         result.put("currentPoolSize", executor.getPoolSize());
         result.put("currentActiveCount", executor.getActiveCount());
         result.put("currentQueueSize", executor.getQueue().size());
+        result.put("labCounters", threadPoolLabService.snapshotCounters());
 
         return result;
     }

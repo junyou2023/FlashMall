@@ -1,0 +1,43 @@
+# ======================== PROD 生产环境配置 ========================
+# 【注意】
+# 生产环境不暴露线程池实验入口（相关 Bean 仅在 perf profile 下生效）。
+# 这里给出占位写法，部署时通过环境变量注入真实配置。
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  cache:
+    type: redis
+
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USERNAME:guest}
+    password: ${RABBIT_PASSWORD:guest}
+    virtual-host: ${RABBIT_VHOST:/}
+
+    template:
+      default-receive-queue: order.create.queue
+
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-interval: 10000
+          multiplier: 2.0
+          max-attempts: 3

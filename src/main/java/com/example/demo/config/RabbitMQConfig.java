@@ -5,6 +5,7 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,46 +24,43 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     /**
+     * 【本轮改动】默认 MQ 名称常量
+     *
+     * 为什么保留默认值？
+     * - 保证你本地旧环境不改配置也能跑起来
+     * - 同时允许 dev/perf/prod 通过 yml 注入不同命名，实现“第二层资源隔离”
+     */
+    public static final String DEFAULT_ORDER_EXCHANGE = "order.exchange";
+    public static final String DEFAULT_ORDER_QUEUE = "order.create.queue";
+    public static final String DEFAULT_ORDER_ROUTING_KEY = "order.create";
+
+    @Value("${app.mq.order.exchange:" + DEFAULT_ORDER_EXCHANGE + "}")
+    private String orderExchange;
+
+    @Value("${app.mq.order.queue:" + DEFAULT_ORDER_QUEUE + "}")
+    private String orderQueue;
+
+    @Value("${app.mq.order.routing-key:" + DEFAULT_ORDER_ROUTING_KEY + "}")
+    private String orderRoutingKey;
+
+    /**
      * 交换机名称
      *
      * 生产者会把消息发到这个交换机。
      */
-    public static final String ORDER_EXCHANGE = "order.exchange";
+    @Bean
+    public TopicExchange orderExchange() {
+        return new TopicExchange(orderExchange, true, false);
+    }
 
     /**
      * 订单创建队列
      *
      * 消费者会监听这个队列。
      */
-    public static final String ORDER_QUEUE = "order.create.queue";
-
-    /**
-     * 路由键
-     *
-     * 用于把消息从 exchange 路由到指定队列。
-     */
-    public static final String ORDER_ROUTING_KEY = "order.create";
-
-    /**
-     * 声明一个 TopicExchange
-     *
-     * durable = true
-     * 表示 RabbitMQ 重启后，这个交换机仍然存在。
-     */
-    @Bean
-    public TopicExchange orderExchange() {
-        return new TopicExchange(ORDER_EXCHANGE, true, false);
-    }
-
-    /**
-     * 声明订单创建队列
-     *
-     * durable = true
-     * 表示 RabbitMQ 重启后，这个队列仍然存在。
-     */
     @Bean
     public Queue orderCreateQueue() {
-        return QueueBuilder.durable(ORDER_QUEUE).build();
+        return QueueBuilder.durable(orderQueue).build();
     }
 
     /**
@@ -77,7 +75,7 @@ public class RabbitMQConfig {
         return BindingBuilder
                 .bind(orderCreateQueue())
                 .to(orderExchange())
-                .with(ORDER_ROUTING_KEY);
+                .with(orderRoutingKey);
     }
 
     /**

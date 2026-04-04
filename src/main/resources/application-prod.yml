@@ -5,7 +5,7 @@
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/demo_prod?useSSL=false&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -14,6 +14,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
 
   cache:
     type: redis
@@ -23,10 +24,10 @@ spring:
     port: ${RABBIT_PORT:5672}
     username: ${RABBIT_USERNAME:guest}
     password: ${RABBIT_PASSWORD:guest}
-    virtual-host: ${RABBIT_VHOST:/}
+    virtual-host: ${RABBIT_VHOST:/flashmall-prod}
 
     template:
-      default-receive-queue: order.create.queue
+      default-receive-queue: ${ORDER_DEFAULT_QUEUE:order.create.queue.prod}
 
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -41,3 +42,13 @@ spring:
           max-interval: 10000
           multiplier: 2.0
           max-attempts: 3
+
+# 【本轮改动】
+# 生产环境同样支持通过配置注入 MQ 命名，
+# 这样上线时可以与 dev/perf 保持一致的“命名隔离能力”。
+app:
+  mq:
+    order:
+      exchange: ${ORDER_EXCHANGE:order.exchange.prod}
+      queue: ${ORDER_QUEUE:order.create.queue.prod}
+      routing-key: ${ORDER_ROUTING_KEY:order.create.prod}

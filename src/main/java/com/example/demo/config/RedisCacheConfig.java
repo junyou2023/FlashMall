@@ -2,6 +2,7 @@ package com.example.demo.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
@@ -12,6 +13,19 @@ import java.time.Duration;
 
 @Configuration
 public class RedisCacheConfig {
+
+    /**
+     * 缓存 key 前缀
+     *
+     * 【本轮改动】
+     * 把 cache key 前缀参数化，支持 dev/perf/prod 分环境命名空间。
+     *
+     * 【注意】
+     * 这里只影响 Spring Cache 产生的 key；
+     * 业务里手写的 RedisKeys 仍主要依赖 redis database 做隔离。
+     */
+    @Value("${app.redis.cache-key-prefix:flashmall}")
+    private String cacheKeyPrefix;
 
     /**
      * 【新增】缓存链路第 5 环：明确缓存“工程规则”
@@ -44,9 +58,11 @@ public class RedisCacheConfig {
                 // 这能让你建立“缓存不是永久真相，只是短期加速层”的第一性认知
                 .entryTtl(Duration.ofMinutes(30))
 
+                // 【本轮改动】为缓存 key 增加环境前缀，避免 dev/perf 互相污染
+                .computePrefixWith(cacheName -> cacheKeyPrefix + ":" + cacheName + ":")
+
                 // 【新增】避免缓存 null
                 // 防止“缓存穿透”演示阶段的误解
                 .disableCachingNullValues();
     }
 }
-

@@ -2,6 +2,7 @@ package com.example.demo.lab.controller;
 
 import com.example.demo.lab.service.ThreadPoolLabService;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,11 +30,23 @@ public class ThreadPoolLabController {
 
     private final ThreadPoolLabService threadPoolLabService;
     private final ThreadPoolTaskExecutor cacheTaskExecutor;
+    private final String datasourceUrl;
+    private final int redisDatabase;
+    private final String rabbitVirtualHost;
+    private final String orderQueueName;
 
     public ThreadPoolLabController(ThreadPoolLabService threadPoolLabService,
-                                   @Qualifier("cacheTaskExecutor") ThreadPoolTaskExecutor cacheTaskExecutor) {
+                                   @Qualifier("cacheTaskExecutor") ThreadPoolTaskExecutor cacheTaskExecutor,
+                                   @Value("${spring.datasource.url}") String datasourceUrl,
+                                   @Value("${spring.data.redis.database:0}") int redisDatabase,
+                                   @Value("${spring.rabbitmq.virtual-host:/}") String rabbitVirtualHost,
+                                   @Value("${app.mq.order.queue-name:order.create.queue}") String orderQueueName) {
         this.threadPoolLabService = threadPoolLabService;
         this.cacheTaskExecutor = cacheTaskExecutor;
+        this.datasourceUrl = datasourceUrl;
+        this.redisDatabase = redisDatabase;
+        this.rabbitVirtualHost = rabbitVirtualHost;
+        this.orderQueueName = orderQueueName;
     }
 
     /**
@@ -59,6 +72,18 @@ public class ThreadPoolLabController {
          * 增加实验计数器，便于判断是否触发 CallerRunsPolicy。
          */
         result.put("labCounters", threadPoolLabService.snapshotCounters());
+
+        /**
+         * 【本轮改动】
+         * 在 perf 实验接口里直接给出当前资源隔离信息，
+         * 便于你压测时快速确认“打到的是 perf 资源而不是 dev 资源”。
+         */
+        Map<String, Object> resourceIsolation = new LinkedHashMap<>();
+        resourceIsolation.put("datasourceUrl", datasourceUrl);
+        resourceIsolation.put("redisDatabase", redisDatabase);
+        resourceIsolation.put("rabbitVirtualHost", rabbitVirtualHost);
+        resourceIsolation.put("orderQueueName", orderQueueName);
+        result.put("resourceIsolation", resourceIsolation);
         return result;
     }
 

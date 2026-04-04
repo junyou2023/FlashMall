@@ -1,6 +1,5 @@
 package com.example.demo.mq;
 
-import com.example.demo.config.RabbitMQConfig;
 import com.example.demo.service.OrderConsumerService;
 import com.rabbitmq.client.Channel;
 import org.springframework.amqp.core.Message;
@@ -40,6 +39,10 @@ public class OrderMessageConsumer {
      * 1. 指定使用 manualAckRabbitListenerContainerFactory
      *    这样这个监听方法就进入“手动 ACK 模式”
      *
+     * 【本轮改动】
+     * 队列名改成从配置读取（app.mq.order.queue-name）。
+     * 这样 dev / perf 可以监听不同队列，实现第二层资源隔离。
+     *
      * 2. 方法参数里多拿两个东西：
      *    - Message amqpMessage：拿 deliveryTag、redelivered 等元信息
      *    - Channel channel：手动 basicAck / basicNack / basicReject
@@ -47,7 +50,7 @@ public class OrderMessageConsumer {
      * 这就是“消费者真正拿回确认权”。
      */
     @RabbitListener(
-            queues = RabbitMQConfig.ORDER_QUEUE,
+            queues = "${app.mq.order.queue-name:order.create.queue}",
             containerFactory = "manualAckRabbitListenerContainerFactory"
     )
     public void consumeCreateOrder(OrderCreateMessage message, Message amqpMessage, Channel channel) throws IOException {

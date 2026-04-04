@@ -5,6 +5,7 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,22 +27,34 @@ public class RabbitMQConfig {
      * 交换机名称
      *
      * 生产者会把消息发到这个交换机。
+     *
+     * 【本轮改动】
+     * 改成从配置读取（app.mq.order.exchange-name）。
+     *
+     * 【为什么改】
+     * 上一轮我们完成了 profile / lab 的第一层隔离，
+     * 但 dev 和 perf 仍在共用同名 MQ 资源。
+     * 这一轮把 exchange / queue / routingKey 参数化后，
+     * 可以让 dev/perf 使用不同命名空间，降低互相污染风险。
      */
-    public static final String ORDER_EXCHANGE = "order.exchange";
+    @Value("${app.mq.order.exchange-name:order.exchange}")
+    private String orderExchangeName;
 
     /**
      * 订单创建队列
      *
      * 消费者会监听这个队列。
      */
-    public static final String ORDER_QUEUE = "order.create.queue";
+    @Value("${app.mq.order.queue-name:order.create.queue}")
+    private String orderQueueName;
 
     /**
      * 路由键
      *
      * 用于把消息从 exchange 路由到指定队列。
      */
-    public static final String ORDER_ROUTING_KEY = "order.create";
+    @Value("${app.mq.order.routing-key:order.create}")
+    private String orderRoutingKey;
 
     /**
      * 声明一个 TopicExchange
@@ -51,7 +64,7 @@ public class RabbitMQConfig {
      */
     @Bean
     public TopicExchange orderExchange() {
-        return new TopicExchange(ORDER_EXCHANGE, true, false);
+        return new TopicExchange(orderExchangeName, true, false);
     }
 
     /**
@@ -62,22 +75,22 @@ public class RabbitMQConfig {
      */
     @Bean
     public Queue orderCreateQueue() {
-        return QueueBuilder.durable(ORDER_QUEUE).build();
+        return QueueBuilder.durable(orderQueueName).build();
     }
 
     /**
      * 把队列绑定到交换机上
      *
-     * 以后生产者只需要往 ORDER_EXCHANGE 发消息，
-     * 并带上 ORDER_ROUTING_KEY，
-     * RabbitMQ 就会把消息路由到 ORDER_QUEUE。
+     * 以后生产者只需要往配置中的 exchange 发消息，
+     * 并带上配置中的 routingKey，
+     * RabbitMQ 就会把消息路由到配置中的 queue。
      */
     @Bean
     public Binding orderCreateBinding() {
         return BindingBuilder
                 .bind(orderCreateQueue())
                 .to(orderExchange())
-                .with(ORDER_ROUTING_KEY);
+                .with(orderRoutingKey);
     }
 
     /**

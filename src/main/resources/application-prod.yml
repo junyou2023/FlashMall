@@ -5,7 +5,7 @@
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/demo_prod?useSSL=false&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -14,6 +14,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      database: ${REDIS_DB:2}
 
   cache:
     type: redis
@@ -23,10 +24,10 @@ spring:
     port: ${RABBIT_PORT:5672}
     username: ${RABBIT_USERNAME:guest}
     password: ${RABBIT_PASSWORD:guest}
-    virtual-host: ${RABBIT_VHOST:/}
+    virtual-host: ${RABBIT_VHOST:/flashmall-prod}
 
     template:
-      default-receive-queue: order.create.queue
+      default-receive-queue: ${RABBIT_DEFAULT_QUEUE:order.create.queue.prod}
 
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -41,3 +42,12 @@ spring:
           max-interval: 10000
           multiplier: 2.0
           max-attempts: 3
+
+app:
+  redis:
+    cache-key-prefix: ${CACHE_KEY_PREFIX:flashmall:prod}
+  mq:
+    order:
+      exchange-name: ${ORDER_EXCHANGE_NAME:order.exchange.prod}
+      queue-name: ${ORDER_QUEUE_NAME:order.create.queue.prod}
+      routing-key: ${ORDER_ROUTING_KEY:order.create.prod}

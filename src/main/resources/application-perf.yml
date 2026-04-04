@@ -2,10 +2,15 @@
 # 【本轮改动】
 # - 显式隔离 perf profile，用于线程池实验入口与压测脚本联调
 # - 业务主链路配置保持与 dev 同构，避免“测的是另一套系统”
+# - dev/perf 改成不同 MySQL 库、Redis DB、RabbitMQ vhost/queue 命名空间
+#
+# 【注意】
+# RabbitMQ 的 /flashmall-perf vhost 需要提前创建（当前仓库不负责自动建 vhost）。
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC
+    # 【本轮改动】perf 使用独立库，压测数据不污染 dev
+    url: jdbc:mysql://localhost:3306/demo_perf?useSSL=false&serverTimezone=UTC
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -14,6 +19,8 @@ spring:
     redis:
       host: localhost
       port: 6379
+      # 【本轮改动】perf 与 dev 使用不同 redis database
+      database: 1
 
   cache:
     type: redis
@@ -23,10 +30,11 @@ spring:
     port: 5672
     username: guest
     password: guest
-    virtual-host: /
+    # 【本轮改动】perf 使用独立 vhost，实验消息与开发消息隔离
+    virtual-host: /flashmall-perf
 
     template:
-      default-receive-queue: order.create.queue
+      default-receive-queue: order.create.queue.perf
 
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -45,3 +53,13 @@ spring:
 logging:
   level:
     com.example.demo.lab: INFO
+
+# ======================== 业务侧资源命名空间（perf） ========================
+app:
+  redis:
+    cache-key-prefix: flashmall:perf
+  mq:
+    order:
+      exchange-name: order.exchange.perf
+      queue-name: order.create.queue.perf
+      routing-key: order.create.perf

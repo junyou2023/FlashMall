@@ -109,6 +109,17 @@ public class ProductService {
      * 都集中在这里处理
      */
     public Product getProductById(Long id) {
+        return getProductByIdWithSource(id).getProduct();
+    }
+
+    /**
+     * 【本轮改动】返回“商品 + 数据来源标签”
+     *
+     * 【为什么改】
+     * 为了给 /products/{id} 补最小可观测性：
+     * 你压测时至少要能区分是 cache hit 还是 db fallback。
+     */
+    public ProductReadResult getProductByIdWithSource(Long id) {
         return getProductByIdWithRetry(id, 0);
     }
 
@@ -118,7 +129,7 @@ public class ProductService {
      * - Redis 空标记命中（防穿透）
      * - 互斥锁重建缓存（防击穿）
      */
-    private Product getProductByIdWithRetry(Long id, int retryTimes) {
+    private ProductReadResult getProductByIdWithRetry(Long id, int retryTimes) {
         String cacheKey = productDetailKey(id);
 
         // 1. 先查 Redis
@@ -127,13 +138,13 @@ public class ProductService {
         // 2. 命中空标记：说明之前已经确认“商品不存在”
         if (NULL_MARKER.equals(cached)) {
             System.out.println("【命中空缓存】商品不存在，productId = " + id);
-            return null;
+            return new ProductReadResult(null, "cache-null");
         }
 
         // 3. 命中正常商品对象：直接返回
         if (cached instanceof Product) {
             System.out.println("【命中缓存】商品详情，productId = " + id);
-            return (Product) cached;
+            return new ProductReadResult((Product) cached, "cache-hit");
         }
 
         // 4. Redis 没有命中，开始处理“缓存重建”
@@ -156,12 +167,12 @@ public class ProductService {
 
                 if (NULL_MARKER.equals(cachedAgain)) {
                     System.out.println("【双检命中空缓存】商品不存在，productId = " + id);
-                    return null;
+                    return new ProductReadResult(null, "cache-null");
                 }
 
                 if (cachedAgain instanceof Product) {
                     System.out.println("【双检命中缓存】商品详情，productId = " + id);
-                    return (Product) cachedAgain;
+                    return new ProductReadResult((Product) cachedAgain, "cache-hit");
                 }
 
                 // 5. 只有抢到锁并且双检后仍无缓存的人，才真正去查 DB
@@ -175,7 +186,7 @@ public class ProductService {
                             NULL_MARKER,
                             Duration.ofSeconds(productNullTtlSeconds)
                     );
-                    return null;
+                    return new ProductReadResult(null, "db-fallback");
                 }
 
                 // 7. DB 查到了：写正常商品缓存
@@ -185,7 +196,7 @@ public class ProductService {
                         Duration.ofSeconds(productTtlSeconds)
                 );
 
-                return product;
+                return new ProductReadResult(product, "db-fallback");
             } finally {
                 // 8. 释放锁（Lua 保证只能删自己的锁）
                 unlock(lockKey, lockValue);
@@ -204,7 +215,7 @@ public class ProductService {
             // 重试多次后仍不行，做一次兜底：
             // 当前阶段可接受的简化方案：直接查 DB（避免一直等待）
             System.out.println("【重试上限兜底】直接查数据库，productId = " + id);
-            return productMapper.findById(id);
+            return new ProductReadResult(productMapper.findById(id), "db-fallback");
         }
 
         try {
@@ -240,5 +251,23 @@ public class ProductService {
                 Collections.singletonList(lockKey),
                 lockValue
         );
+    }
+
+    public static class ProductReadResult {
+        private final Product product;
+        private final String source;
+
+        public ProductReadResult(Product product, String source) {
+            this.product = product;
+            this.source = source;
+        }
+
+        public Product getProduct() {
+            return product;
+        }
+
+        public String getSource() {
+            return source;
+        }
     }
 }

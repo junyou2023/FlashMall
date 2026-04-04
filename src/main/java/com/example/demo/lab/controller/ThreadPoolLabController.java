@@ -1,6 +1,7 @@
 package com.example.demo.lab.controller;
 
 import com.example.demo.lab.service.ThreadPoolLabService;
+import com.example.demo.observability.MinimalAccessLogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -29,11 +30,14 @@ public class ThreadPoolLabController {
 
     private final ThreadPoolLabService threadPoolLabService;
     private final ThreadPoolTaskExecutor cacheTaskExecutor;
+    private final MinimalAccessLogService minimalAccessLogService;
 
     public ThreadPoolLabController(ThreadPoolLabService threadPoolLabService,
-                                   @Qualifier("cacheTaskExecutor") ThreadPoolTaskExecutor cacheTaskExecutor) {
+                                   @Qualifier("cacheTaskExecutor") ThreadPoolTaskExecutor cacheTaskExecutor,
+                                   MinimalAccessLogService minimalAccessLogService) {
         this.threadPoolLabService = threadPoolLabService;
         this.cacheTaskExecutor = cacheTaskExecutor;
+        this.minimalAccessLogService = minimalAccessLogService;
     }
 
     /**
@@ -100,26 +104,61 @@ public class ThreadPoolLabController {
             @RequestParam(defaultValue = "1000") long sleepMillis) {
 
         long start = System.currentTimeMillis();
+        String traceId = minimalAccessLogService.newTraceId();
+        String requestId = traceId;
 
-        for (int i = 0; i < taskCount; i++) {
-            String taskId = UUID.randomUUID().toString();
-            threadPoolLabService.recordSubmit();
-            threadPoolLabService.submitDummyTask(taskId, sleepMillis);
+        Map<String, Object> bizTags = new LinkedHashMap<>();
+        bizTags.put("taskCount", taskCount);
+        bizTags.put("sleepMillis", sleepMillis);
+
+        try {
+            for (int i = 0; i < taskCount; i++) {
+                String taskId = UUID.randomUUID().toString();
+                threadPoolLabService.recordSubmit();
+                threadPoolLabService.submitDummyTask(taskId, sleepMillis);
+            }
+
+            long cost = System.currentTimeMillis() - start;
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("submittedTaskCount", taskCount);
+            result.put("sleepMillis", sleepMillis);
+            result.put("submitRequestCostMs", cost);
+
+            ThreadPoolExecutor executor = cacheTaskExecutor.getThreadPoolExecutor();
+            result.put("currentPoolSize", executor.getPoolSize());
+            result.put("currentActiveCount", executor.getActiveCount());
+            result.put("currentQueueSize", executor.getQueue().size());
+            result.put("labCounters", threadPoolLabService.snapshotCounters());
+
+            // 【本轮改动】线程池链路最小观测标签
+            bizTags.put("activeCount", executor.getActiveCount());
+            bizTags.put("queueSize", executor.getQueue().size());
+            bizTags.put("callerRunsTriggered", threadPoolLabService.snapshotCounters().get("callerRunsTriggered"));
+
+            minimalAccessLogService.logAccess(
+                    traceId,
+                    requestId,
+                    "/lab/thread-pool/submit",
+                    "POST",
+                    cost,
+                    true,
+                    bizTags
+            );
+
+            return result;
+        } catch (RuntimeException e) {
+            bizTags.put("error", e.getMessage());
+            minimalAccessLogService.logAccess(
+                    traceId,
+                    requestId,
+                    "/lab/thread-pool/submit",
+                    "POST",
+                    System.currentTimeMillis() - start,
+                    false,
+                    bizTags
+            );
+            throw e;
         }
-
-        long cost = System.currentTimeMillis() - start;
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("submittedTaskCount", taskCount);
-        result.put("sleepMillis", sleepMillis);
-        result.put("submitRequestCostMs", cost);
-
-        ThreadPoolExecutor executor = cacheTaskExecutor.getThreadPoolExecutor();
-        result.put("currentPoolSize", executor.getPoolSize());
-        result.put("currentActiveCount", executor.getActiveCount());
-        result.put("currentQueueSize", executor.getQueue().size());
-        result.put("labCounters", threadPoolLabService.snapshotCounters());
-
-        return result;
     }
 }

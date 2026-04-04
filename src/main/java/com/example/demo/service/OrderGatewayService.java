@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.OrderSubmitTraceResult;
 import com.example.demo.mq.OrderCreateMessage;
 import com.example.demo.mq.OrderMessageProducer;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,21 @@ public class OrderGatewayService {
      * 当前线程只负责把这次下单请求安全地送进异步链路。
      */
     public String submitOrder(Long userId, Long productId, int quantity, String requestId) {
+        return submitOrderWithTrace(userId, productId, quantity, requestId).getMessage();
+    }
+
+    /**
+     * 【本轮改动】
+     * 新增一个“带链路标签”的返回结构，供 Controller 打最小观测日志。
+     *
+     * 【注意】
+     * 不改变现有主链路流程；
+     * 只是把“Redis 预扣 / MQ 发送 / 异步受理”这三个关键步骤显式化。
+     */
+    public OrderSubmitTraceResult submitOrderWithTrace(Long userId, Long productId, int quantity, String requestId) {
+        String preDeductStatus = "NOT_STARTED";
+        String mqSendStatus = "NOT_STARTED";
+        boolean asyncAccepted = false;
 
         /**
          * requestId 是这次请求的业务幂等标识。
@@ -124,6 +140,7 @@ public class OrderGatewayService {
             long redisResult = redisStockService.tryDeductStock(productId, quantity);
 
             if (redisResult == -2) {
+                preDeductStatus = "STOCK_NOT_PREHEATED";
                 /**
                  * 预扣根本没开始成功，所以要把幂等标记清掉，
                  * 否则这次失败请求会一直占着 requestId。
@@ -133,6 +150,7 @@ public class OrderGatewayService {
             }
 
             if (redisResult == -1) {
+                preDeductStatus = "INSUFFICIENT";
                 /**
                  * Redis 已明确判定库存不足，
                  * 同样要清理这次 requestId 的幂等标记。
@@ -140,6 +158,7 @@ public class OrderGatewayService {
                 redisOrderGuardService.clearIdempotent(requestId);
                 throw new RuntimeException("库存不足（Redis 预扣失败）");
             }
+            preDeductStatus = "SUCCESS";
 
             /**
              * 第 5 步：标记订单状态为 PENDING
@@ -167,13 +186,15 @@ public class OrderGatewayService {
             orderMessageProducer.sendCreateOrderMessage(
                     new OrderCreateMessage(userId, productId, quantity, requestId)
             );
+            mqSendStatus = "SUCCESS";
 
             /**
              * 返回“已受理”而不是“已成功创建订单”。
              * 因为当前线程只负责入口受理，
              * 订单是否最终成功，要看消费者异步处理结果。
              */
-            return "订单请求已受理，正在异步处理中";
+            asyncAccepted = true;
+            return new OrderSubmitTraceResult("订单请求已受理，正在异步处理中", preDeductStatus, mqSendStatus, asyncAccepted);
 
         } finally {
             /**

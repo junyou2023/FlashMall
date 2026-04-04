@@ -90,6 +90,22 @@ public class ThreadPoolLabService {
         log.info("【线程池任务完成】taskId={}，thread={}，cost={}ms", taskId, threadName, cost);
     }
 
+
+    /**
+     * 【本轮改动】重置实验计数器
+     *
+     * 为什么要保留这个能力？
+     * - 压测经常是“多轮对比”
+     * - 如果计数器一直累加，不容易判断单轮实验效果
+     *
+     * 注意：
+     * 这个方法只在 perf profile 下可用，不会影响 dev/prod。
+     */
+    public void resetCounters() {
+        totalSubmitted.set(0);
+        totalExecuted.set(0);
+        callerRunsTriggered.set(0);
+    }
     /**
      * 返回实验计数器快照
      */

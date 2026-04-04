@@ -1,6 +1,5 @@
 package com.example.demo.mq;
 
-import com.example.demo.config.RabbitMQConfig;
 import com.example.demo.service.OrderConsumerService;
 import com.rabbitmq.client.Channel;
 import org.springframework.amqp.core.Message;
@@ -45,9 +44,12 @@ public class OrderMessageConsumer {
      *    - Channel channel：手动 basicAck / basicNack / basicReject
      *
      * 这就是“消费者真正拿回确认权”。
+     *
+     * 【本轮改动】
+     * 队列名改成配置注入，配合 profile 能做到 dev/perf 队列级隔离。
      */
     @RabbitListener(
-            queues = RabbitMQConfig.ORDER_QUEUE,
+            queues = "${app.mq.order.queue:order.create.queue}",
             containerFactory = "manualAckRabbitListenerContainerFactory"
     )
     public void consumeCreateOrder(OrderCreateMessage message, Message amqpMessage, Channel channel) throws IOException {

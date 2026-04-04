@@ -7,6 +7,7 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -27,6 +28,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OrderMessageProducer {
 
     private final RabbitTemplate rabbitTemplate;
+
+    /**
+     * 【本轮改动】订单消息路由参数改为可配置
+     *
+     * 这样 dev / perf 可以使用不同 exchange / routingKey，
+     * 即使共用同一台 RabbitMQ，也能做到最小成本隔离。
+     */
+    private final String orderExchange;
+    private final String orderRoutingKey;
     private final OrderSendCompensationService compensationService;
 
     /**
@@ -63,9 +73,13 @@ public class OrderMessageProducer {
             });
 
     public OrderMessageProducer(RabbitTemplate rabbitTemplate,
-                                OrderSendCompensationService compensationService) {
+                                OrderSendCompensationService compensationService,
+                                @Value("${app.mq.order.exchange:" + RabbitMQConfig.DEFAULT_ORDER_EXCHANGE + "}") String orderExchange,
+                                @Value("${app.mq.order.routing-key:" + RabbitMQConfig.DEFAULT_ORDER_ROUTING_KEY + "}") String orderRoutingKey) {
         this.rabbitTemplate = rabbitTemplate;
         this.compensationService = compensationService;
+        this.orderExchange = orderExchange;
+        this.orderRoutingKey = orderRoutingKey;
     }
 
     @PostConstruct
@@ -161,8 +175,8 @@ public class OrderMessageProducer {
 
         try {
             rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.ORDER_EXCHANGE,
-                    RabbitMQConfig.ORDER_ROUTING_KEY,
+                    orderExchange,
+                    orderRoutingKey,
                     message,
                     msg -> {
                         // 给 Return 回调一个可追踪的 messageId

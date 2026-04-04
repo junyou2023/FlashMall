@@ -62,6 +62,22 @@ public class ThreadPoolLabController {
         return result;
     }
 
+
+    /**
+     * 重置实验计数器（用于多轮压测前清零）
+     *
+     * 示例：
+     * POST /lab/thread-pool/reset-counters
+     */
+    @PostMapping("/lab/thread-pool/reset-counters")
+    public Map<String, Object> resetCounters() {
+        threadPoolLabService.resetCounters();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("message", "lab counters reset");
+        result.put("labCounters", threadPoolLabService.snapshotCounters());
+        return result;
+    }
     /**
      * 批量提交模拟任务
      *

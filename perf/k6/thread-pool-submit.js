@@ -13,6 +13,26 @@ export const options = {
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const TASK_COUNT = __ENV.TASK_COUNT || '20';
 const SLEEP_MILLIS = __ENV.SLEEP_MILLIS || '1000';
+const RESET_COUNTERS = (__ENV.RESET_COUNTERS || 'true').toLowerCase() === 'true';
+
+/**
+ * 【本轮改动】
+ * setup 阶段可选地清零计数器，方便“多轮压测结果可解释”。
+ *
+ * 注意：
+ * /lab/** 只在 perf profile 暴露。
+ * 如果你误在 dev/prod 运行，reset 接口会返回 404，这是预期行为。
+ */
+export function setup() {
+    if (!RESET_COUNTERS) {
+        return;
+    }
+
+    const resetRes = http.post(`${BASE_URL}/lab/thread-pool/reset-counters`, null);
+    check(resetRes, {
+        'reset status is 200': (r) => r.status === 200,
+    });
+}
 
 export default function () {
     const url = `${BASE_URL}/lab/thread-pool/submit?taskCount=${TASK_COUNT}&sleepMillis=${SLEEP_MILLIS}`;

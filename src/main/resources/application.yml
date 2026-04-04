@@ -1,55 +1,17 @@
-# ======================== Spring Boot 基础配置 ========================
+# ======================== 全局基础配置（所有环境共享） ========================
 spring:
-  # ---------- 数据源配置（MySQL） ----------
-  datasource:
-    url: jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-  # 【缓存链路第 2 环】Redis 连接参数
-  data:
-    redis:
-      host: localhost
-      port: 6379
-
-  cache:
-    type: redis
-
-  # ---------- RabbitMQ 连接配置 ----------
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-    virtual-host: /
-
-    template:
-      default-receive-queue: order.create.queue
-
-    # 【关键新增】Publisher Confirm
-    publisher-confirm-type: correlated
-
-    # 【关键新增】Publisher Returns
-    publisher-returns: true
-
-    # 【关键新增】消费者手动 ACK
-    listener:
-      simple:
-        acknowledge-mode: manual
-        prefetch: 1
-        retry:
-          enabled: true
-          initial-interval: 1000
-          max-interval: 10000
-          multiplier: 2.0
-          max-attempts: 3
+  profiles:
+    # 【本轮改动】默认走 dev，保证本地开发保持原体验。
+    default: dev
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.example.demo.model
 
-# ======================== 本轮新增：异步线程池配置 ========================
+# ======================== 缓存异步线程池配置（共享基础设施） ========================
+# 【为什么改】
+# cacheTaskExecutor 现在不仅被实验入口使用，也被真实业务里的延迟双删使用，
+# 所以仍然放在公共配置里，避免被误当成纯实验脏代码。
 app:
   async:
     cache:

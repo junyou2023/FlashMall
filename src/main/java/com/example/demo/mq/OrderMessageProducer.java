@@ -1,12 +1,12 @@
 package com.example.demo.mq;
 
-import com.example.demo.config.RabbitMQConfig;
 import com.example.demo.service.OrderSendCompensationService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -28,6 +28,15 @@ public class OrderMessageProducer {
 
     private final RabbitTemplate rabbitTemplate;
     private final OrderSendCompensationService compensationService;
+
+    /**
+     * 【本轮改动】从配置读取 exchange / routingKey
+     *
+     * 【为什么改】
+     * 配合 dev/perf 不同命名空间，让生产者天然发送到各自环境的 MQ 资源。
+     */
+    private final String orderExchangeName;
+    private final String orderRoutingKey;
 
     /**
      * 待确认消息表
@@ -63,9 +72,13 @@ public class OrderMessageProducer {
             });
 
     public OrderMessageProducer(RabbitTemplate rabbitTemplate,
-                                OrderSendCompensationService compensationService) {
+                                OrderSendCompensationService compensationService,
+                                @Value("${app.mq.order.exchange-name:order.exchange}") String orderExchangeName,
+                                @Value("${app.mq.order.routing-key:order.create}") String orderRoutingKey) {
         this.rabbitTemplate = rabbitTemplate;
         this.compensationService = compensationService;
+        this.orderExchangeName = orderExchangeName;
+        this.orderRoutingKey = orderRoutingKey;
     }
 
     @PostConstruct
@@ -161,8 +174,8 @@ public class OrderMessageProducer {
 
         try {
             rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.ORDER_EXCHANGE,
-                    RabbitMQConfig.ORDER_ROUTING_KEY,
+                    orderExchangeName,
+                    orderRoutingKey,
                     message,
                     msg -> {
                         // 给 Return 回调一个可追踪的 messageId

@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.OrderSubmitTraceResult;
 import com.example.demo.mq.OrderCreateMessage;
 import com.example.demo.mq.OrderMessageProducer;
+import com.example.demo.observability.WriteChainMetricsService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,6 +23,7 @@ public class OrderGatewayService {
     private final RedisOrderGuardService redisOrderGuardService;
     private final RedisStockService redisStockService;
     private final OrderMessageProducer orderMessageProducer;
+    private final WriteChainMetricsService writeChainMetricsService;
 
     /**
      * 入口锁的过期时间。
@@ -34,11 +36,13 @@ public class OrderGatewayService {
     public OrderGatewayService(RedisLockService redisLockService,
                                RedisOrderGuardService redisOrderGuardService,
                                RedisStockService redisStockService,
-                               OrderMessageProducer orderMessageProducer) {
+                               OrderMessageProducer orderMessageProducer,
+                               WriteChainMetricsService writeChainMetricsService) {
         this.redisLockService = redisLockService;
         this.redisOrderGuardService = redisOrderGuardService;
         this.redisStockService = redisStockService;
         this.orderMessageProducer = orderMessageProducer;
+        this.writeChainMetricsService = writeChainMetricsService;
     }
 
     /**
@@ -141,6 +145,7 @@ public class OrderGatewayService {
 
             if (redisResult == -2) {
                 preDeductStatus = "STOCK_NOT_PREHEATED";
+                writeChainMetricsService.recordRedisPreDeductNotPreheated();
                 /**
                  * 预扣根本没开始成功，所以要把幂等标记清掉，
                  * 否则这次失败请求会一直占着 requestId。
@@ -151,6 +156,7 @@ public class OrderGatewayService {
 
             if (redisResult == -1) {
                 preDeductStatus = "INSUFFICIENT";
+                writeChainMetricsService.recordRedisPreDeductInsufficient();
                 /**
                  * Redis 已明确判定库存不足，
                  * 同样要清理这次 requestId 的幂等标记。
@@ -159,6 +165,7 @@ public class OrderGatewayService {
                 throw new RuntimeException("库存不足（Redis 预扣失败）");
             }
             preDeductStatus = "SUCCESS";
+            writeChainMetricsService.recordRedisPreDeductSuccess();
 
             /**
              * 第 5 步：标记订单状态为 PENDING
@@ -187,6 +194,7 @@ public class OrderGatewayService {
                     new OrderCreateMessage(userId, productId, quantity, requestId)
             );
             mqSendStatus = "SUCCESS";
+            writeChainMetricsService.recordMqSendSuccess();
 
             /**
              * 返回“已受理”而不是“已成功创建订单”。
@@ -194,8 +202,12 @@ public class OrderGatewayService {
              * 订单是否最终成功，要看消费者异步处理结果。
              */
             asyncAccepted = true;
+            writeChainMetricsService.recordOrderGatewayAccepted();
             return new OrderSubmitTraceResult("订单请求已受理，正在异步处理中", preDeductStatus, mqSendStatus, asyncAccepted);
 
+        } catch (RuntimeException e) {
+            writeChainMetricsService.recordOrderGatewayRejected();
+            throw e;
         } finally {
             /**
              * 第 7 步：释放入口锁

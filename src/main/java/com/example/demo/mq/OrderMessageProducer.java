@@ -1,6 +1,7 @@
 package com.example.demo.mq;
 
 import com.example.demo.config.RabbitMQConfig;
+import com.example.demo.observability.WriteChainMetricsService;
 import com.example.demo.service.OrderSendCompensationService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -38,6 +39,7 @@ public class OrderMessageProducer {
     private final String orderExchange;
     private final String orderRoutingKey;
     private final OrderSendCompensationService compensationService;
+    private final WriteChainMetricsService writeChainMetricsService;
 
     /**
      * 待确认消息表
@@ -74,10 +76,12 @@ public class OrderMessageProducer {
 
     public OrderMessageProducer(RabbitTemplate rabbitTemplate,
                                 OrderSendCompensationService compensationService,
+                                WriteChainMetricsService writeChainMetricsService,
                                 @Value("${app.mq.order.exchange:" + RabbitMQConfig.DEFAULT_ORDER_EXCHANGE + "}") String orderExchange,
                                 @Value("${app.mq.order.routing-key:" + RabbitMQConfig.DEFAULT_ORDER_ROUTING_KEY + "}") String orderRoutingKey) {
         this.rabbitTemplate = rabbitTemplate;
         this.compensationService = compensationService;
+        this.writeChainMetricsService = writeChainMetricsService;
         this.orderExchange = orderExchange;
         this.orderRoutingKey = orderRoutingKey;
     }
@@ -107,6 +111,7 @@ public class OrderMessageProducer {
                 // Broker 没确认收到
                 PendingMessageRecord removed = pendingMessageMap.remove(requestId);
                 if (removed != null && removed.tryMarkCompensated()) {
+                    writeChainMetricsService.recordMqConfirmFail();
                     System.err.println("【MQ Confirm失败】Broker 未确认收到消息，requestId = "
                             + requestId + "，cause = " + cause);
 
@@ -147,6 +152,7 @@ public class OrderMessageProducer {
                 removed.markReturned();
 
                 if (removed.tryMarkCompensated()) {
+                    writeChainMetricsService.recordMqReturnFail();
                     System.err.println("【MQ Return触发】消息未成功路由到队列，requestId = "
                             + requestId
                             + "，replyCode = " + returned.getReplyCode()
@@ -193,6 +199,7 @@ public class OrderMessageProducer {
             System.out.println("【MQ发送】订单创建消息已发送，requestId = " + requestId);
 
         } catch (Exception e) {
+            writeChainMetricsService.recordMqSendFail();
             PendingMessageRecord removed = pendingMessageMap.remove(requestId);
             if (removed != null && removed.tryMarkCompensated()) {
                 compensationService.compensateOnSendFail(

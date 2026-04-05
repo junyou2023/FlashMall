@@ -53,6 +53,10 @@ app:
       exchange: order.exchange.perf
       queue: order.create.queue.perf
       routing-key: order.create.perf
+    consumer:
+      concurrency: 4
+      max-concurrency: 12
+      prefetch: 50
 
 logging:
   level:

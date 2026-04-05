@@ -44,6 +44,25 @@ public class RabbitMQConfig {
     private String orderRoutingKey;
 
     /**
+     * 【本轮改动】消费侧并发参数改为显式可配置
+     *
+     * 目标：
+     * 不推翻当前手动 ACK 模式，
+     * 但让 perf 压测时可以通过配置调节：
+     * - 并发消费者数
+     * - 最大并发消费者数
+     * - prefetch
+     */
+    @Value("${app.mq.consumer.concurrency:1}")
+    private int listenerConcurrency;
+
+    @Value("${app.mq.consumer.max-concurrency:4}")
+    private int listenerMaxConcurrency;
+
+    @Value("${app.mq.consumer.prefetch:10}")
+    private int listenerPrefetch;
+
+    /**
      * 交换机名称
      *
      * 生产者会把消息发到这个交换机。
@@ -136,18 +155,19 @@ public class RabbitMQConfig {
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
 
         /**
-         * prefetch = 1
+         * 【本轮改动】消费并发参数统一由配置驱动。
          *
-         * 当前阶段先故意保守一点：
-         * 一次先让一个消费者拿 1 条未确认消息。
+         * 你可以在 profile 中独立调：
+         * - concurrency
+         * - maxConcurrency
+         * - prefetch
          *
-         * 好处：
-         * - 便于你观察“收到消息 -> 落库 -> ACK”的完整链路
-         * - 避免一下子压很多未确认消息，调试更清晰
-         *
-         * 后续如果进入“并发消费调优”阶段，再放大。
+         * 这样写链路压测时就能回答：
+         * “瓶颈是入口、发送，还是消费者并发拿取能力不足”。
          */
-        factory.setPrefetchCount(1);
+        factory.setConcurrentConsumers(listenerConcurrency);
+        factory.setMaxConcurrentConsumers(listenerMaxConcurrency);
+        factory.setPrefetchCount(listenerPrefetch);
 
         /**
          * 这里先不依赖 Spring 帮你自动重回队列，

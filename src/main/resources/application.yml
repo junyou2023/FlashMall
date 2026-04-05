@@ -20,3 +20,13 @@ app:
       queue-capacity: 50
       keep-alive-seconds: 60
       thread-name-prefix: cache-delete-
+    # 【本轮改动】正式聚合查询线程池（区别于 cacheTaskExecutor 实验田）
+    query:
+      core-pool-size: 8
+      max-pool-size: 16
+      queue-capacity: 200
+      keep-alive-seconds: 60
+      thread-name-prefix: biz-query-
+
+  dashboard:
+    task-timeout-ms: 180

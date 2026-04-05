@@ -25,6 +25,9 @@ HAVING COUNT(*) > 1
 ORDER BY order_count DESC, user_id ASC
 LIMIT 20;
 
+-- D2. 说明：当前 demo 表结构未持久化 requestId，
+-- requestId 幂等口径请通过 Redis 键与应用日志排查。
+
 -- E. 是否超卖（若 oversold = 1 说明发生超卖）
 -- 这里假设 reset-order-bench.sql 初始 stock=20000。
 SELECT
@@ -33,3 +36,8 @@ SELECT
              < (SELECT COALESCE(SUM(quantity), 0) FROM order_item WHERE product_id = 1)
         THEN 1 ELSE 0
     END AS oversold;
+
+-- F. 订单数 与 购买用户数
+SELECT COUNT(*) AS total_orders,
+       COUNT(DISTINCT user_id) AS distinct_order_users
+FROM orders;

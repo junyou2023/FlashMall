@@ -50,3 +50,17 @@ rabbitmqctl set_permissions -p /flashmall-perf guest ".*" ".*" ".*"
 # perf
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=perf
 ```
+
+## 5) 本轮新增观测接口（perf/dev 都可用）
+
+- 写链路统计：`GET /ops/write-chain/stats`
+- 聚合查询线程池统计：`GET /dashboard/query-pool/stats`
+- 聚合查询入口：`GET /dashboard/home?productId=1&userId=1001`
+
+## 6) 压测脚本补充
+
+- 读链路：`perf/k6/product-detail.js`
+- 写链路：`perf/k6/order-create.js`
+- 线程池实验链路：`perf/k6/thread-pool-submit.js`（仅 perf profile）
+- 正式聚合查询线程池链路：`perf/k6/dashboard-home.js`
+- 混合流量（可选）：`perf/k6/mixed-flow.js`

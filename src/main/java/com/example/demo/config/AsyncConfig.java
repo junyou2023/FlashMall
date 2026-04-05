@@ -82,6 +82,21 @@ public class AsyncConfig {
     @Value("${app.async.cache.thread-name-prefix:cache-delete-}")
     private String threadNamePrefix;
 
+    @Value("${app.async.query.core-pool-size:8}")
+    private int queryCorePoolSize;
+
+    @Value("${app.async.query.max-pool-size:16}")
+    private int queryMaxPoolSize;
+
+    @Value("${app.async.query.queue-capacity:200}")
+    private int queryQueueCapacity;
+
+    @Value("${app.async.query.keep-alive-seconds:60}")
+    private int queryKeepAliveSeconds;
+
+    @Value("${app.async.query.thread-name-prefix:biz-query-}")
+    private String queryThreadNamePrefix;
+
     /**
      * 缓存异步任务线程池
      *
@@ -226,6 +241,42 @@ public class AsyncConfig {
          *
          * 到这里，这个线程池就真正可用了。
          */
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * =========================================================
+     * 【本轮改动 5】
+     * 新增正式业务聚合查询线程池：queryTaskExecutor
+     * =========================================================
+     *
+     * 【为什么改】
+     * 当前 cacheTaskExecutor 的真实定位是：
+     * - 真实业务：延迟双删第二次删缓存
+     * - 实验用途：线程池行为观察
+     *
+     * 但如果要更接近“高并发主链路线程池治理”，
+     * 更典型的真实场景是：聚合查询接口把多个读任务并发拆分执行。
+     *
+     * 所以这一轮新增 queryTaskExecutor，专门承接：
+     * - /dashboard/home 这类正式业务聚合查询
+     * - CompletableFuture 并发拆分任务
+     *
+     * 这样你后续回答“线程池治理主链路”时：
+     * 可以清晰区分两个线程池的角色，不会把实验链路和业务主链路混在一起。
+     */
+    @Bean("queryTaskExecutor")
+    public ThreadPoolTaskExecutor queryTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(queryCorePoolSize);
+        executor.setMaxPoolSize(queryMaxPoolSize);
+        executor.setQueueCapacity(queryQueueCapacity);
+        executor.setKeepAliveSeconds(queryKeepAliveSeconds);
+        executor.setThreadNamePrefix(queryThreadNamePrefix);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(5);
         executor.initialize();
         return executor;
     }

@@ -65,3 +65,7 @@ app:
       exchange: order.exchange.dev
       queue: order.create.queue.dev
       routing-key: order.create.dev
+    consumer:
+      concurrency: 2
+      max-concurrency: 6
+      prefetch: 20

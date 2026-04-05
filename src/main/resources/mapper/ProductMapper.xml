@@ -39,4 +39,14 @@
           AND stock >= #{quantity}
     </update>
 
+    <select id="countAllProducts" resultType="long">
+        SELECT COUNT(*)
+        FROM product
+    </select>
+
+    <select id="sumAllStock" resultType="long">
+        SELECT COALESCE(SUM(stock), 0)
+        FROM product
+    </select>
+
 </mapper>

@@ -1,5 +1,7 @@
 package com.example.demo.mq;
 
+import com.example.demo.observability.MinimalAccessLogService;
+import com.example.demo.observability.WriteChainMetricsService;
 import com.example.demo.service.OrderConsumerService;
 import com.rabbitmq.client.Channel;
 import org.springframework.amqp.core.Message;
@@ -22,9 +24,15 @@ import java.io.IOException;
 public class OrderMessageConsumer {
 
     private final OrderConsumerService orderConsumerService;
+    private final WriteChainMetricsService writeChainMetricsService;
+    private final MinimalAccessLogService minimalAccessLogService;
 
-    public OrderMessageConsumer(OrderConsumerService orderConsumerService) {
+    public OrderMessageConsumer(OrderConsumerService orderConsumerService,
+                                WriteChainMetricsService writeChainMetricsService,
+                                MinimalAccessLogService minimalAccessLogService) {
         this.orderConsumerService = orderConsumerService;
+        this.writeChainMetricsService = writeChainMetricsService;
+        this.minimalAccessLogService = minimalAccessLogService;
     }
 
     /**
@@ -53,7 +61,9 @@ public class OrderMessageConsumer {
             containerFactory = "manualAckRabbitListenerContainerFactory"
     )
     public void consumeCreateOrder(OrderCreateMessage message, Message amqpMessage, Channel channel) throws IOException {
+        long start = System.currentTimeMillis();
         long deliveryTag = amqpMessage.getMessageProperties().getDeliveryTag();
+        String traceId = minimalAccessLogService.newTraceId();
 
         try {
             System.out.println("【MQ消费】收到订单创建消息，requestId = " + message.getRequestId());
@@ -73,7 +83,21 @@ public class OrderMessageConsumer {
              * 而是“业务跑完了才算成功”。
              */
             channel.basicAck(deliveryTag, false);
+            writeChainMetricsService.recordConsumeSuccess();
             System.out.println("【MQ ACK】订单消息已确认，requestId = " + message.getRequestId());
+
+            java.util.Map<String, Object> bizTags = new java.util.LinkedHashMap<>();
+            bizTags.put("requestId", message.getRequestId());
+            bizTags.put("redelivered", amqpMessage.getMessageProperties().getRedelivered());
+            minimalAccessLogService.logAccess(
+                    traceId,
+                    message.getRequestId(),
+                    "mq:order.create",
+                    "CONSUME",
+                    System.currentTimeMillis() - start,
+                    true,
+                    bizTags
+            );
 
         } catch (Exception e) {
             boolean redelivered = Boolean.TRUE.equals(amqpMessage.getMessageProperties().getRedelivered());
@@ -102,11 +126,27 @@ public class OrderMessageConsumer {
              */
             if (!redelivered) {
                 channel.basicNack(deliveryTag, false, true);
+                writeChainMetricsService.recordConsumeNackRequeue();
                 System.out.println("【MQ NACK】首次失败，消息重新入队，requestId = " + message.getRequestId());
             } else {
                 channel.basicReject(deliveryTag, false);
+                writeChainMetricsService.recordConsumeRejectDiscard();
                 System.out.println("【MQ REJECT】重复投递后仍失败，消息丢弃，requestId = " + message.getRequestId());
             }
+
+            java.util.Map<String, Object> bizTags = new java.util.LinkedHashMap<>();
+            bizTags.put("requestId", message.getRequestId());
+            bizTags.put("redelivered", redelivered);
+            bizTags.put("error", e.getMessage());
+            minimalAccessLogService.logAccess(
+                    traceId,
+                    message.getRequestId(),
+                    "mq:order.create",
+                    "CONSUME",
+                    System.currentTimeMillis() - start,
+                    false,
+                    bizTags
+            );
         }
     }
     // ===== 手动 ACK 本轮新增结束 =====

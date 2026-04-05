@@ -18,4 +18,21 @@
         WHERE id = #{id}
     </select>
 
+    <select id="countAllOrders" resultType="long">
+        SELECT COUNT(*)
+        FROM orders
+    </select>
+
+    <select id="countDistinctUsersByProduct" resultType="long">
+        SELECT COUNT(DISTINCT o.user_id)
+        FROM orders o
+                 JOIN order_item oi ON o.id = oi.order_id
+        WHERE oi.product_id = #{productId}
+    </select>
+
+    <select id="latestOrderCreatedAt" resultType="java.time.LocalDateTime">
+        SELECT MAX(created_at)
+        FROM orders
+    </select>
+
 </mapper>

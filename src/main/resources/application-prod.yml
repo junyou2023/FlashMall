@@ -52,3 +52,7 @@ app:
       exchange: ${ORDER_EXCHANGE:order.exchange.prod}
       queue: ${ORDER_QUEUE:order.create.queue.prod}
       routing-key: ${ORDER_ROUTING_KEY:order.create.prod}
+    consumer:
+      concurrency: ${ORDER_CONSUMER_CONCURRENCY:4}
+      max-concurrency: ${ORDER_CONSUMER_MAX_CONCURRENCY:16}
+      prefetch: ${ORDER_CONSUMER_PREFETCH:100}

@@ -30,4 +30,14 @@ public interface ProductMapper {
     int deductStock(@Param("id") Long id,
                     @Param("quantity") int quantity);
 
+    /**
+     * 聚合查询链路：统计商品总数
+     */
+    long countAllProducts();
+
+    /**
+     * 聚合查询链路：统计所有商品剩余库存总和
+     */
+    long sumAllStock();
+
 }

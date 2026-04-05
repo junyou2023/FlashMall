@@ -3,6 +3,9 @@ package com.example.demo.mapper;
 
 import com.example.demo.model.Order;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.time.LocalDateTime;
 
 @Mapper
 public interface OrderMapper {
@@ -12,4 +15,10 @@ public interface OrderMapper {
 
     // 根据 ID 查询订单
     Order findById(Long id);
+
+    long countAllOrders();
+
+    long countDistinctUsersByProduct(@Param("productId") Long productId);
+
+    LocalDateTime latestOrderCreatedAt();
 }

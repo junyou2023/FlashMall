@@ -61,3 +61,22 @@ app:
 logging:
   level:
     com.example.demo.lab: INFO
+
+# ======================== 可选最小可视化监控骨架（本轮补充） ========================
+# 【本轮改动】
+# 这部分不是替代 /ops/** 的最小可观测性，而是给“更像公司 dashboard”提供下一步接入点：
+# - /actuator/health：基础健康
+# - /actuator/metrics：应用内指标检索入口
+# - /actuator/prometheus：Prometheus 抓取口
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true

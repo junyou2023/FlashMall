@@ -30,6 +30,12 @@
 
 ## 2. 本轮新增的最小可观测性入口
 
+## 总览入口（本轮新增）
+- `GET /ops/overview`
+- 作用：一屏聚合查看写链路计数器、queryTaskExecutor、cacheTaskExecutor/labCounters、MQ 口径提示。
+- 关系：先看总览，再按需深入 `/ops/write-chain/stats`、`/dashboard/query-pool/stats`、`/lab/thread-pool/stats`。
+
+
 ## 写链路统计
 - `GET /ops/write-chain/stats`
 - 重点看：
@@ -63,6 +69,19 @@
 可选混合流量：`perf/k6/mixed-flow.js`
 
 ---
+
+
+## 3.5 本轮新增：JMeter GUI 可视化压测补充
+
+- 测试计划目录：`perf/jmeter/`
+  - `product-detail-read.jmx`
+  - `order-create-write.jmx`
+  - `lab-thread-pool-submit.jmx`
+  - `dashboard-home-query.jmx`
+- 这 4 个计划分别对应读链路、写链路、实验线程池链路、正式聚合查询线程池链路。
+- 边界不变：
+  - JMeter 负责可视化发流量与请求侧统计
+  - 应用内部指标继续通过 `/ops/**`、`/dashboard/**`、`/lab/**` 查看
 
 ## 4. 推荐执行顺序（perf 环境）
 

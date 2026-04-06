@@ -56,6 +56,8 @@ rabbitmqctl set_permissions -p /flashmall-perf guest ".*" ".*" ".*"
 - 写链路统计：`GET /ops/write-chain/stats`
 - 聚合查询线程池统计：`GET /dashboard/query-pool/stats`
 - 聚合查询入口：`GET /dashboard/home?productId=1&userId=1001`
+- 总览聚合入口：`GET /ops/overview`
+- 可选指标骨架：`GET /actuator/prometheus`（perf profile）
 
 ## 6) 压测脚本补充
 
@@ -64,3 +66,12 @@ rabbitmqctl set_permissions -p /flashmall-perf guest ".*" ".*" ".*"
 - 线程池实验链路：`perf/k6/thread-pool-submit.js`（仅 perf profile）
 - 正式聚合查询线程池链路：`perf/k6/dashboard-home.js`
 - 混合流量（可选）：`perf/k6/mixed-flow.js`
+
+## 7) JMeter GUI 压测计划（本轮补充）
+
+- `perf/jmeter/product-detail-read.jmx`
+- `perf/jmeter/order-create-write.jmx`
+- `perf/jmeter/lab-thread-pool-submit.jmx`
+- `perf/jmeter/dashboard-home-query.jmx`
+
+详细操作见：`perf/notes/jmeter-guide.md`。

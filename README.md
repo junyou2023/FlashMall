@@ -2,6 +2,17 @@
 
 > 目标：**只安装 Docker Desktop**，即可一键拉起 MySQL / Redis / RabbitMQ，然后在 IDEA 直接启动 Spring Boot 完成联调与压测准备。
 
+## 0. 一步到位导航（先看这里）
+
+- 如果你希望“打开项目就按步骤走完”：请直接阅读
+  **`docs/isolated-environment-runbook.md`**（按 dev / perf / prod 分环境，包含：启动、连通性校验、冒烟、压测、常见报错排查、收尾清理）。  
+- 如果你主要关注 perf 压测准备，可继续看：
+  - `perf/notes/environment-init.md`
+  - `perf/notes/jmeter-guide.md`
+  - `perf/notes/high-concurrency-closed-loop.md`
+
+> 建议顺序：`docs/isolated-environment-runbook.md` -> `perf/notes/*.md`。
+
 ---
 
 ## 1. 当前分支环境说明

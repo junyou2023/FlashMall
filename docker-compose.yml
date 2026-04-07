@@ -1,0 +1,95 @@
+version: "3.9"
+
+# 项目名会体现在网络名/卷名前缀里，便于 docker ps 快速识别
+name: flashmall-local
+
+services:
+  # =========================
+  # MySQL: 持久化业务主数据
+  # =========================
+  mysql:
+    image: mysql:8.4
+    container_name: flashmall-mysql
+    restart: unless-stopped
+    environment:
+      # root 密码可通过 .env 覆盖
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
+      # 保证容器时区一致，减少日志排障成本
+      TZ: ${TZ:-UTC}
+    ports:
+      # 宿主机:容器
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      # 数据持久化卷：重启容器不丢数据
+      - flashmall-mysql-data:/var/lib/mysql
+      # 初始化脚本目录：仅首次初始化数据目录时执行
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    command:
+      # 与现有项目字符集保持一致，避免中文/emoji 等字符问题
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      # 与常见本地客户端兼容（减少认证插件差异问题）
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      # mysqladmin ping 成功才视为健康
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # =========================
+  # Redis: 缓存/分布式键值
+  # =========================
+  redis:
+    image: redis:7.4-alpine
+    container_name: flashmall-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      # AOF 持久化目录
+      - flashmall-redis-data:/data
+    # 开启 AOF，模拟更接近真实环境的持久化行为
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # =========================
+  # RabbitMQ: 异步消息链路
+  # =========================
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: flashmall-rabbitmq
+    restart: unless-stopped
+    environment:
+      # 默认账户；可由 .env 覆盖
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      # 启动时加载 definitions，自动创建 vhost / queue / binding
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_management load_definitions \"/etc/rabbitmq/definitions.json\""
+    ports:
+      # 应用连接 AMQP 端口
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      # 浏览器管理台端口
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      # 数据持久化
+      - flashmall-rabbitmq-data:/var/lib/rabbitmq
+      # definitions：预置 dev/perf 隔离资源
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      # rabbitmq.conf：定义加载与 guest 访问策略
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+# 顶层命名卷
+volumes:
+  flashmall-mysql-data:
+  flashmall-redis-data:
+  flashmall-rabbitmq-data:

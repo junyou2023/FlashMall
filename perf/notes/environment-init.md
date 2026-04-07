@@ -1,77 +1,54 @@
-# dev/perf 资源初始化与运行最小说明
+# dev/perf 环境初始化与压测入口（索引版）
 
-## 1) 一次性初始化（推荐）
+> 这份文档现在是“索引页”，完整一步到位手册请看：
+> **`docs/isolated-environment-runbook.md`**
 
-```bash
-bash perf/setup/init-isolated-resources.sh
-```
+---
 
-这个脚本会创建并初始化：
-- MySQL：`demo_dev`、`demo_perf`
-- 表：`product`、`orders`、`order_item`
-- 种子商品：`product.id=1`
+## 1) 你应该先看哪个文档？
 
-## 2) Redis 隔离
+- 想从 0 到 1 跑通（含启动、连通、冒烟、压测、排错）：  
+  `docs/isolated-environment-runbook.md`
+- 想用 JMeter GUI 调参：  
+  `perf/notes/jmeter-guide.md`
+- 想做高并发闭环方法论：  
+  `perf/notes/high-concurrency-closed-loop.md`
 
-配置已在 profile 中固定：
-- dev: `spring.data.redis.database=1`
-- perf: `spring.data.redis.database=2`
+---
 
-可手动验证：
-
-```bash
-redis-cli -n 1 INFO keyspace
-redis-cli -n 2 INFO keyspace
-```
-
-## 3) RabbitMQ 隔离
-
-配置已在 profile 中固定：
-- dev: `virtual-host=/flashmall-dev` + `order.exchange.dev / order.create.queue.dev / order.create.dev`
-- perf: `virtual-host=/flashmall-perf` + `order.exchange.perf / order.create.queue.perf / order.create.perf`
-
-最小手工命令（RabbitMQ 已安装时）：
+## 2) 最小必跑命令（perf 场景）
 
 ```bash
-rabbitmqctl add_vhost /flashmall-dev
-rabbitmqctl add_vhost /flashmall-perf
-rabbitmqctl set_permissions -p /flashmall-dev guest ".*" ".*" ".*"
-rabbitmqctl set_permissions -p /flashmall-perf guest ".*" ".*" ".*"
-```
+# 1. 启动依赖
+docker compose up -d
 
-> 交换机/队列绑定由 Spring Boot 启动时自动声明（见 `RabbitMQConfig`）。
-
-## 4) 启动方式
-
-```bash
-# dev
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-
-# perf
+# 2. 启动 perf 应用
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=perf
+
+# 3. 冒烟
+curl http://localhost:8080/actuator/health
+curl "http://localhost:8080/dashboard/home?productId=1&userId=1001"
+
+# 4. k6 压测（低并发起步）
+k6 run perf/k6/product-detail.js
+k6 run perf/k6/order-create.js
+k6 run perf/k6/dashboard-home.js
 ```
 
-## 5) 本轮新增观测接口（perf/dev 都可用）
+---
 
-- 写链路统计：`GET /ops/write-chain/stats`
-- 聚合查询线程池统计：`GET /dashboard/query-pool/stats`
-- 聚合查询入口：`GET /dashboard/home?productId=1&userId=1001`
-- 总览聚合入口：`GET /ops/overview`
-- 可选指标骨架：`GET /actuator/prometheus`（perf profile）
+## 3) perf 隔离要点（快速记忆）
 
-## 6) 压测脚本补充
+- MySQL：`demo_perf`
+- Redis：DB `2`
+- RabbitMQ：`/flashmall-perf` + `order.exchange.perf` / `order.create.queue.perf` / `order.create.perf`
 
-- 读链路：`perf/k6/product-detail.js`
-- 写链路：`perf/k6/order-create.js`
-- 线程池实验链路：`perf/k6/thread-pool-submit.js`（仅 perf profile）
-- 正式聚合查询线程池链路：`perf/k6/dashboard-home.js`
-- 混合流量（可选）：`perf/k6/mixed-flow.js`
+---
 
-## 7) JMeter GUI 压测计划（本轮补充）
+## 4) 观测接口（压测时同时看）
 
-- `perf/jmeter/product-detail-read.jmx`
-- `perf/jmeter/order-create-write.jmx`
-- `perf/jmeter/lab-thread-pool-submit.jmx`
-- `perf/jmeter/dashboard-home-query.jmx`
-
-详细操作见：`perf/notes/jmeter-guide.md`。
+- `GET /ops/overview`
+- `GET /ops/write-chain/stats`
+- `GET /dashboard/query-pool/stats`
+- `GET /dashboard/home?productId=1&userId=1001`
+- `GET /actuator/prometheus`（perf profile）

@@ -1,0 +1,84 @@
+{
+  "vhosts": [
+    { "name": "/" },
+    { "name": "/flashmall-dev" },
+    { "name": "/flashmall-perf" }
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "guest",
+      "vhost": "/flashmall-dev",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "guest",
+      "vhost": "/flashmall-perf",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "order.exchange.dev",
+      "vhost": "/flashmall-dev",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "order.exchange.perf",
+      "vhost": "/flashmall-perf",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "order.create.queue.dev",
+      "vhost": "/flashmall-dev",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "order.create.queue.perf",
+      "vhost": "/flashmall-perf",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "order.exchange.dev",
+      "vhost": "/flashmall-dev",
+      "destination": "order.create.queue.dev",
+      "destination_type": "queue",
+      "routing_key": "order.create.dev",
+      "arguments": {}
+    },
+    {
+      "source": "order.exchange.perf",
+      "vhost": "/flashmall-perf",
+      "destination": "order.create.queue.perf",
+      "destination_type": "queue",
+      "routing_key": "order.create.perf",
+      "arguments": {}
+    }
+  ]
+}

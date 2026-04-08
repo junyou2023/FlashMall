@@ -2,7 +2,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.model.Product;
-import com.example.demo.observability.MinimalAccessLogService;
+import com.example.demo.observability.annotation.BizTrace;
 import com.example.demo.service.RedisDataTypeService;
 import com.example.demo.service.ProductService;
 import com.example.demo.service.ProductCacheService;
@@ -79,7 +79,6 @@ public class ProductController {
     private final ProductService productService;
     private final RedisDataTypeService redisDataTypeService;
     private final ProductCacheService productCacheService;
-    private final MinimalAccessLogService minimalAccessLogService;
 
     /**
      * 【重要】构造函数注入
@@ -92,12 +91,10 @@ public class ProductController {
      * Q: Spring 是如何注入依赖的？
      * A: 通过反射调用构造函数
      */
-    public ProductController(ProductService productService, RedisDataTypeService redisDataTypeService, ProductCacheService productCacheService,
-                             MinimalAccessLogService minimalAccessLogService) {
+    public ProductController(ProductService productService, RedisDataTypeService redisDataTypeService, ProductCacheService productCacheService) {
         this.productService = productService;
         this.redisDataTypeService = redisDataTypeService;
         this.productCacheService = productCacheService;
-        this.minimalAccessLogService = minimalAccessLogService;
     }
 
     /**
@@ -135,58 +132,28 @@ public class ProductController {
      * A: 这是业务需求，用于推荐系统、热门排行等
      */
     @GetMapping("/products/{id}")
+    @BizTrace(
+            scene = "product.detail.read",
+            path = "/products/{id}",
+            method = "GET",
+            bizTagSpel = "{'productId': #id, 'userId': #userId}"
+    )
     public Product getProduct(
             @PathVariable Long id,           // 从 URL 路径获取商品 ID
             @RequestParam(name = "userId", defaultValue = "1") Long userId  // 从查询字符串获取用户 ID
     ) {
-        long start = System.currentTimeMillis();
-        String traceId = minimalAccessLogService.newTraceId();
-        String requestId = traceId;
+        // Step 1: 查询商品信息（带缓存）
+        ProductService.ProductReadResult readResult = productService.getProductByIdWithSource(id);
+        Product product = readResult.getProduct();
 
-        java.util.Map<String, Object> bizTags = new java.util.LinkedHashMap<>();
-        bizTags.put("productId", id);
-        bizTags.put("userId", userId);
-
-        try {
-            // Step 1: 查询商品信息（带缓存）
-            ProductService.ProductReadResult readResult = productService.getProductByIdWithSource(id);
-            Product product = readResult.getProduct();
-
-            // Step 2: 记录用户浏览行为（无论是否命中缓存都要记录）
-            // 为什么？因为“用户访问了商品”是业务事实，要记录下来
-            if (product != null) {
-                redisDataTypeService.recordProductView(userId, product);
-            }
-
-            // 【本轮改动】补最小可观测性标签：区分 cache hit / db fallback
-            bizTags.put("readSource", readResult.getSource());
-            bizTags.put("productFound", product != null);
-
-            minimalAccessLogService.logAccess(
-                    traceId,
-                    requestId,
-                    "/products/{id}",
-                    "GET",
-                    System.currentTimeMillis() - start,
-                    true,
-                    bizTags
-            );
-
-            // Step 3: 返回商品详情（JSON 格式）
-            return product;
-        } catch (RuntimeException e) {
-            bizTags.put("error", e.getMessage());
-            minimalAccessLogService.logAccess(
-                    traceId,
-                    requestId,
-                    "/products/{id}",
-                    "GET",
-                    System.currentTimeMillis() - start,
-                    false,
-                    bizTags
-            );
-            throw e;
+        // Step 2: 记录用户浏览行为（无论是否命中缓存都要记录）
+        // 为什么？因为“用户访问了商品”是业务事实，要记录下来
+        if (product != null) {
+            redisDataTypeService.recordProductView(userId, product);
         }
+
+        // Step 3: 返回商品详情（JSON 格式）
+        return product;
     }
 
     /**

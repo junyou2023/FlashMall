@@ -69,3 +69,15 @@ app:
       concurrency: 2
       max-concurrency: 6
       prefetch: 20
+
+  payment:
+    stripe:
+      # Stripe 测试密钥：本地联调前请替换成你自己的 sk_test_...
+      secret-key: ""
+      # 支付成功/取消后的前端回跳地址（先留 dev 默认占位）
+      success-url: "http://localhost:8080/pay/success?session_id={CHECKOUT_SESSION_ID}"
+      cancel-url: "http://localhost:8080/pay/cancel"
+      # Checkout 会话过期时间（分钟）
+      checkout-expire-minutes: 30
+      # 支付币种，Stripe Checkout 要求小写
+      currency: "usd"

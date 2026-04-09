@@ -110,6 +110,14 @@ public class OrderConsumerService {
 
             Order order = new Order();
             order.setUserId(userId);
+            /**
+             * requestId 一起落库到 orders 表。
+             *
+             * 为什么这一步是支付一期的关键：
+             * 后续支付入口是“userId + requestId”发起，
+             * 必须能通过 requestId 找到这笔异步已创建的待支付订单。
+             */
+            order.setRequestId(requestId);
             order.setTotalPrice(totalPrice);
             order.setStatus("CREATED");
             order.setCreatedAt(LocalDateTime.now());

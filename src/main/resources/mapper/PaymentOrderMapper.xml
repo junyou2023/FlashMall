@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.PaymentOrderMapper">
+
+    <!-- 创建本地支付单：先占位，再调用 Stripe，确保本地链路可追踪 -->
+    <insert id="insert" parameterType="PaymentOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO payment_order (
+            order_id,
+            user_id,
+            provider,
+            out_trade_no,
+            amount,
+            currency,
+            status,
+            stripe_checkout_session_id,
+            stripe_payment_intent_id,
+            checkout_url,
+            idempotency_key,
+            expires_at,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{orderId},
+            #{userId},
+            #{provider},
+            #{outTradeNo},
+            #{amount},
+            #{currency},
+            #{status},
+            #{stripeCheckoutSessionId},
+            #{stripePaymentIntentId},
+            #{checkoutUrl},
+            #{idempotencyKey},
+            #{expiresAt},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <!--
+      复用未完成支付会话：
+      支付一期不做复杂重试，所以先做“有可用链接就复用”，避免重复拉起 Stripe Session。
+    -->
+    <select id="findReusableUnpaidByOrderId" resultType="PaymentOrder">
+        SELECT id,
+               order_id,
+               user_id,
+               provider,
+               out_trade_no,
+               amount,
+               currency,
+               status,
+               stripe_checkout_session_id,
+               stripe_payment_intent_id,
+               checkout_url,
+               idempotency_key,
+               expires_at,
+               created_at,
+               updated_at
+        FROM payment_order
+        WHERE order_id = #{orderId}
+          AND provider = #{provider}
+          AND status = 'WAIT_PAY'
+          AND checkout_url IS NOT NULL
+          AND expires_at > NOW()
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- Stripe 返回 session 后回填支付单 -->
+    <update id="updateStripeSessionInfo" parameterType="PaymentOrder">
+        UPDATE payment_order
+        SET status = #{status},
+            stripe_checkout_session_id = #{stripeCheckoutSessionId},
+            stripe_payment_intent_id = #{stripePaymentIntentId},
+            checkout_url = #{checkoutUrl},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

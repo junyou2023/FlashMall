@@ -7,15 +7,23 @@
 
     <!-- 插入订单。useGeneratedKeys 会把自增ID回填到 Order.id -->
     <insert id="insert" parameterType="Order" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO orders (user_id, total_price, status, created_at)
-        VALUES (#{userId}, #{totalPrice}, #{status}, #{createdAt})
+        INSERT INTO orders (user_id, request_id, total_price, status, created_at)
+        VALUES (#{userId}, #{requestId}, #{totalPrice}, #{status}, #{createdAt})
     </insert>
 
     <!-- 根据 ID 查询订单主表 -->
     <select id="findById" parameterType="long" resultType="Order">
-        SELECT id, user_id, total_price, status, created_at
+        SELECT id, user_id, request_id, total_price, status, created_at
         FROM orders
         WHERE id = #{id}
+    </select>
+
+    <!-- 根据 requestId 查询订单：支付入口用它判断“异步订单是否已经创建完成” -->
+    <select id="findByRequestId" resultType="Order">
+        SELECT id, user_id, request_id, total_price, status, created_at
+        FROM orders
+        WHERE request_id = #{requestId}
+        LIMIT 1
     </select>
 
     <select id="countAllOrders" resultType="long">

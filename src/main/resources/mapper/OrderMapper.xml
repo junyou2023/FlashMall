@@ -43,4 +43,15 @@
         FROM orders
     </select>
 
+    <!--
+      订单支付状态推进：
+      只能从 CREATED -> PAID，且入口仅由 webhook 服务调用。
+    -->
+    <update id="markPaid">
+        UPDATE orders
+        SET status = 'PAID'
+        WHERE id = #{orderId}
+          AND status = 'CREATED'
+    </update>
+
 </mapper>

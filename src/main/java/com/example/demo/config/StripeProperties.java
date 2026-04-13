@@ -17,6 +17,8 @@ public class StripeProperties {
     private String secretKey;
     private String successUrl;
     private String cancelUrl;
+    // webhook 验签密钥：用于校验回调是否真的来自 Stripe
+    private String webhookSecret;
     private String currency = "usd";
     private long checkoutExpireMinutes = 30L;
 
@@ -42,6 +44,14 @@ public class StripeProperties {
 
     public void setCancelUrl(String cancelUrl) {
         this.cancelUrl = cancelUrl;
+    }
+
+    public String getWebhookSecret() {
+        return webhookSecret;
+    }
+
+    public void setWebhookSecret(String webhookSecret) {
+        this.webhookSecret = webhookSecret;
     }
 
     public String getCurrency() {

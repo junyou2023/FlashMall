@@ -81,4 +81,77 @@
         WHERE id = #{id}
     </update>
 
+    <!-- webhook: 根据 payment_intent_id 查支付单 -->
+    <select id="findByStripePaymentIntentId" resultType="PaymentOrder">
+        SELECT id,
+               order_id,
+               user_id,
+               provider,
+               out_trade_no,
+               amount,
+               currency,
+               status,
+               stripe_checkout_session_id,
+               stripe_payment_intent_id,
+               checkout_url,
+               idempotency_key,
+               expires_at,
+               created_at,
+               updated_at
+        FROM payment_order
+        WHERE stripe_payment_intent_id = #{stripePaymentIntentId}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- webhook: 根据 checkout_session_id 查支付单 -->
+    <select id="findByStripeCheckoutSessionId" resultType="PaymentOrder">
+        SELECT id,
+               order_id,
+               user_id,
+               provider,
+               out_trade_no,
+               amount,
+               currency,
+               status,
+               stripe_checkout_session_id,
+               stripe_payment_intent_id,
+               checkout_url,
+               idempotency_key,
+               expires_at,
+               created_at,
+               updated_at
+        FROM payment_order
+        WHERE stripe_checkout_session_id = #{stripeCheckoutSessionId}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 支付成功：推进为 SUCCEEDED。已成功就不重复推进。 -->
+    <update id="markPaid">
+        UPDATE payment_order
+        SET status = 'SUCCEEDED',
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND status != 'SUCCEEDED'
+    </update>
+
+    <!-- 本次支付尝试失败：只改 payment_order，不动 orders。 -->
+    <update id="markFailed">
+        UPDATE payment_order
+        SET status = 'FAILED',
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND status IN ('INIT', 'WAIT_PAY')
+    </update>
+
+    <!-- Checkout 会话过期：只改 payment_order，不直接取消订单。 -->
+    <update id="markExpired">
+        UPDATE payment_order
+        SET status = 'EXPIRED',
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND status IN ('INIT', 'WAIT_PAY')
+    </update>
+
 </mapper>

@@ -74,7 +74,24 @@ CREATE TABLE IF NOT EXISTS payment_order (
   UNIQUE KEY uk_payment_order_idempotency_key (idempotency_key),
   KEY idx_payment_order_order_id (order_id),
   KEY idx_payment_order_user_id (user_id),
-  KEY idx_payment_order_provider_status (provider, status)
+  KEY idx_payment_order_provider_status (provider, status),
+  KEY idx_payment_order_intent_id (stripe_payment_intent_id),
+  KEY idx_payment_order_session_id (stripe_checkout_session_id)
+ ) ENGINE=InnoDB;
+
+-- payment_webhook_event: webhook 去重与审计表
+CREATE TABLE IF NOT EXISTS payment_webhook_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  provider VARCHAR(32) NOT NULL,
+  provider_event_id VARCHAR(128) NOT NULL,
+  event_type VARCHAR(128) NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  processed TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  UNIQUE KEY uk_payment_webhook_provider_event (provider, provider_event_id),
+  KEY idx_payment_webhook_event_type (event_type),
+  KEY idx_payment_webhook_processed (processed)
 ) ENGINE=InnoDB;
 
 -- dev 最小种子数据：至少确保 productId=1 可被读链路/写链路直接使用
@@ -143,7 +160,23 @@ CREATE TABLE IF NOT EXISTS payment_order (
   UNIQUE KEY uk_payment_order_idempotency_key (idempotency_key),
   KEY idx_payment_order_order_id (order_id),
   KEY idx_payment_order_user_id (user_id),
-  KEY idx_payment_order_provider_status (provider, status)
+  KEY idx_payment_order_provider_status (provider, status),
+  KEY idx_payment_order_intent_id (stripe_payment_intent_id),
+  KEY idx_payment_order_session_id (stripe_checkout_session_id)
+ ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payment_webhook_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  provider VARCHAR(32) NOT NULL,
+  provider_event_id VARCHAR(128) NOT NULL,
+  event_type VARCHAR(128) NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  processed TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  UNIQUE KEY uk_payment_webhook_provider_event (provider, provider_event_id),
+  KEY idx_payment_webhook_event_type (event_type),
+  KEY idx_payment_webhook_processed (processed)
 ) ENGINE=InnoDB;
 
 -- perf 种子库存更高，避免基础烟测时很快耗尽库存

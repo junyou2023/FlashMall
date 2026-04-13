@@ -24,4 +24,7 @@ public interface OrderMapper {
     long countDistinctUsersByProduct(@Param("productId") Long productId);
 
     LocalDateTime latestOrderCreatedAt();
+
+    // 只有 webhook 确认成功后，才允许把订单从 CREATED 推进为 PAID
+    int markPaid(@Param("orderId") Long orderId);
 }

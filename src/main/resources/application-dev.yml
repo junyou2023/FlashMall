@@ -77,6 +77,8 @@ app:
       # 支付成功/取消后的前端回跳地址（先留 dev 默认占位）
       success-url: "http://localhost:8080/pay/success?session_id={CHECKOUT_SESSION_ID}"
       cancel-url: "http://localhost:8080/pay/cancel"
+      # Webhook 验签密钥：本地用 Stripe CLI 转发时替换为 whsec_...
+      webhook-secret: ""
       # Checkout 会话过期时间（分钟）
       checkout-expire-minutes: 30
       # 支付币种，Stripe Checkout 要求小写

@@ -5,7 +5,7 @@
 -- 1) 与当前分支 dev/perf profile 对齐（demo_dev/demo_perf）
 -- 2) 表结构严格来自当前 MyBatis mapper 使用的字段
 -- 3) 提供最小可运行种子数据，开箱即可联调
--- ==============================================================
+-- ============================================================== 
 
 -- ------------------------------
 -- 第一步：创建数据库
@@ -33,9 +33,11 @@ CREATE TABLE IF NOT EXISTS product (
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
+  request_id VARCHAR(64) NOT NULL,
   total_price DOUBLE NOT NULL,
   status VARCHAR(32) NOT NULL,
   created_at DATETIME NOT NULL,
+  UNIQUE KEY uk_orders_request_id (request_id),
   KEY idx_orders_user_id (user_id),
   KEY idx_orders_created_at (created_at)
 ) ENGINE=InnoDB;
@@ -49,6 +51,47 @@ CREATE TABLE IF NOT EXISTS order_item (
   price DOUBLE NOT NULL,
   KEY idx_order_item_order_id (order_id),
   KEY idx_order_item_product_id (product_id)
+) ENGINE=InnoDB;
+
+-- payment_order: 支付一期的本地支付聚合表（订单后置支付，不污染 orders 主表）
+CREATE TABLE IF NOT EXISTS payment_order (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  provider VARCHAR(32) NOT NULL,
+  out_trade_no VARCHAR(64) NOT NULL,
+  amount DOUBLE NOT NULL,
+  currency VARCHAR(16) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  stripe_checkout_session_id VARCHAR(128) NULL,
+  stripe_payment_intent_id VARCHAR(128) NULL,
+  checkout_url VARCHAR(1000) NULL,
+  idempotency_key VARCHAR(128) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uk_payment_order_out_trade_no (out_trade_no),
+  UNIQUE KEY uk_payment_order_idempotency_key (idempotency_key),
+  KEY idx_payment_order_order_id (order_id),
+  KEY idx_payment_order_user_id (user_id),
+  KEY idx_payment_order_provider_status (provider, status),
+  KEY idx_payment_order_intent_id (stripe_payment_intent_id),
+  KEY idx_payment_order_session_id (stripe_checkout_session_id)
+ ) ENGINE=InnoDB;
+
+-- payment_webhook_event: webhook 去重与审计表
+CREATE TABLE IF NOT EXISTS payment_webhook_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  provider VARCHAR(32) NOT NULL,
+  provider_event_id VARCHAR(128) NOT NULL,
+  event_type VARCHAR(128) NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  processed TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  UNIQUE KEY uk_payment_webhook_provider_event (provider, provider_event_id),
+  KEY idx_payment_webhook_event_type (event_type),
+  KEY idx_payment_webhook_processed (processed)
 ) ENGINE=InnoDB;
 
 -- dev 最小种子数据：至少确保 productId=1 可被读链路/写链路直接使用
@@ -78,9 +121,11 @@ CREATE TABLE IF NOT EXISTS product (
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
+  request_id VARCHAR(64) NOT NULL,
   total_price DOUBLE NOT NULL,
   status VARCHAR(32) NOT NULL,
   created_at DATETIME NOT NULL,
+  UNIQUE KEY uk_orders_request_id (request_id),
   KEY idx_orders_user_id (user_id),
   KEY idx_orders_created_at (created_at)
 ) ENGINE=InnoDB;
@@ -93,6 +138,45 @@ CREATE TABLE IF NOT EXISTS order_item (
   price DOUBLE NOT NULL,
   KEY idx_order_item_order_id (order_id),
   KEY idx_order_item_product_id (product_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payment_order (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  provider VARCHAR(32) NOT NULL,
+  out_trade_no VARCHAR(64) NOT NULL,
+  amount DOUBLE NOT NULL,
+  currency VARCHAR(16) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  stripe_checkout_session_id VARCHAR(128) NULL,
+  stripe_payment_intent_id VARCHAR(128) NULL,
+  checkout_url VARCHAR(1000) NULL,
+  idempotency_key VARCHAR(128) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uk_payment_order_out_trade_no (out_trade_no),
+  UNIQUE KEY uk_payment_order_idempotency_key (idempotency_key),
+  KEY idx_payment_order_order_id (order_id),
+  KEY idx_payment_order_user_id (user_id),
+  KEY idx_payment_order_provider_status (provider, status),
+  KEY idx_payment_order_intent_id (stripe_payment_intent_id),
+  KEY idx_payment_order_session_id (stripe_checkout_session_id)
+ ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payment_webhook_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  provider VARCHAR(32) NOT NULL,
+  provider_event_id VARCHAR(128) NOT NULL,
+  event_type VARCHAR(128) NOT NULL,
+  payload_json LONGTEXT NOT NULL,
+  processed TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  UNIQUE KEY uk_payment_webhook_provider_event (provider, provider_event_id),
+  KEY idx_payment_webhook_event_type (event_type),
+  KEY idx_payment_webhook_processed (processed)
 ) ENGINE=InnoDB;
 
 -- perf 种子库存更高，避免基础烟测时很快耗尽库存

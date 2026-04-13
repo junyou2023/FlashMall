@@ -8,6 +8,7 @@ public class Order {
 
     private Long id;            // 订单ID
     private Long userId;        // 下单用户ID
+    private String requestId;   // 业务请求幂等号：用于把“下单受理请求”和“异步落库订单”关联起来
     private double totalPrice;  // 订单总价
     private String status;      // 状态：CREATED / PAID / CANCELED ...
     private LocalDateTime createdAt;  // 创建时间
@@ -32,6 +33,14 @@ public class Order {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(String requestId) {
+        this.requestId = requestId;
     }
 
     public double getTotalPrice() {

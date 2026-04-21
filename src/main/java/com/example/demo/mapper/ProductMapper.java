@@ -31,6 +31,12 @@ public interface ProductMapper {
                     @Param("quantity") int quantity);
 
     /**
+     * 订单取消后的库存回补
+     */
+    int increaseStock(@Param("id") Long id,
+                      @Param("quantity") int quantity);
+
+    /**
      * 聚合查询链路：统计商品总数
      */
     long countAllProducts();

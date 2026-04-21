@@ -33,6 +33,11 @@ public class RabbitMQConfig {
     public static final String DEFAULT_ORDER_EXCHANGE = "order.exchange";
     public static final String DEFAULT_ORDER_QUEUE = "order.create.queue";
     public static final String DEFAULT_ORDER_ROUTING_KEY = "order.create";
+    public static final String DEFAULT_ORDER_CANCEL_DELAY_QUEUE = "order.cancel.delay.queue";
+    public static final String DEFAULT_ORDER_CANCEL_DELAY_ROUTING_KEY = "order.cancel.delay";
+    public static final String DEFAULT_ORDER_CANCEL_EXECUTE_QUEUE = "order.cancel.execute.queue";
+    public static final String DEFAULT_ORDER_CANCEL_EXECUTE_ROUTING_KEY = "order.cancel.execute";
+    public static final long DEFAULT_ORDER_CANCEL_TTL_MILLIS = 900000L;
 
     @Value("${app.mq.order.exchange:" + DEFAULT_ORDER_EXCHANGE + "}")
     private String orderExchange;
@@ -42,6 +47,16 @@ public class RabbitMQConfig {
 
     @Value("${app.mq.order.routing-key:" + DEFAULT_ORDER_ROUTING_KEY + "}")
     private String orderRoutingKey;
+    @Value("${app.mq.order.cancel.delay-queue:" + DEFAULT_ORDER_CANCEL_DELAY_QUEUE + "}")
+    private String orderCancelDelayQueue;
+    @Value("${app.mq.order.cancel.delay-routing-key:" + DEFAULT_ORDER_CANCEL_DELAY_ROUTING_KEY + "}")
+    private String orderCancelDelayRoutingKey;
+    @Value("${app.mq.order.cancel.execute-queue:" + DEFAULT_ORDER_CANCEL_EXECUTE_QUEUE + "}")
+    private String orderCancelExecuteQueue;
+    @Value("${app.mq.order.cancel.execute-routing-key:" + DEFAULT_ORDER_CANCEL_EXECUTE_ROUTING_KEY + "}")
+    private String orderCancelExecuteRoutingKey;
+    @Value("${app.mq.order.cancel.ttl-millis:" + DEFAULT_ORDER_CANCEL_TTL_MILLIS + "}")
+    private long orderCancelTtlMillis;
 
     /**
      * 【本轮改动】消费侧并发参数改为显式可配置
@@ -95,6 +110,54 @@ public class RabbitMQConfig {
                 .bind(orderCreateQueue())
                 .to(orderExchange())
                 .with(orderRoutingKey);
+    }
+
+    /**
+     * 订单超时取消的 TTL 队列
+     *
+     * 这一层的目标不是“立刻取消”，而是“先等待一段时间”。
+     * 消息先在这个队列里过期，过期后再由 DLX 转发到真正执行取消的队列。
+     */
+    @Bean
+    public Queue orderCancelDelayQueue() {
+        return QueueBuilder.durable(orderCancelDelayQueue)
+                .withArgument("x-message-ttl", orderCancelTtlMillis)
+                .withArgument("x-dead-letter-exchange", orderExchange)
+                .withArgument("x-dead-letter-routing-key", orderCancelExecuteRoutingKey)
+                .build();
+    }
+
+    /**
+     * 把“延迟取消消息”路由到 TTL 队列
+     */
+    @Bean
+    public Binding orderCancelDelayBinding() {
+        return BindingBuilder
+                .bind(orderCancelDelayQueue())
+                .to(orderExchange())
+                .with(orderCancelDelayRoutingKey);
+    }
+
+    /**
+     * 订单超时取消执行队列
+     *
+     * 只有 TTL 过期后、由死信路由过来的消息才会进入这里。
+     * 消费者监听这个队列，就可以做真正的“状态校验 + 取消 + 回补”。
+     */
+    @Bean
+    public Queue orderCancelExecuteQueue() {
+        return QueueBuilder.durable(orderCancelExecuteQueue).build();
+    }
+
+    /**
+     * 把死信后的“执行取消消息”绑定到执行队列
+     */
+    @Bean
+    public Binding orderCancelExecuteBinding() {
+        return BindingBuilder
+                .bind(orderCancelExecuteQueue())
+                .to(orderExchange())
+                .with(orderCancelExecuteRoutingKey);
     }
 
     /**

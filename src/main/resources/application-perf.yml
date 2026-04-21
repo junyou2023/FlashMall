@@ -53,6 +53,12 @@ app:
       exchange: order.exchange.perf
       queue: order.create.queue.perf
       routing-key: order.create.perf
+      cancel:
+        delay-queue: order.cancel.delay.queue.perf
+        delay-routing-key: order.cancel.delay.perf
+        execute-queue: order.cancel.execute.queue.perf
+        execute-routing-key: order.cancel.execute.perf
+        ttl-millis: 900000
     consumer:
       concurrency: 4
       max-concurrency: 12

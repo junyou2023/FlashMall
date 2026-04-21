@@ -52,6 +52,12 @@ app:
       exchange: ${ORDER_EXCHANGE:order.exchange.prod}
       queue: ${ORDER_QUEUE:order.create.queue.prod}
       routing-key: ${ORDER_ROUTING_KEY:order.create.prod}
+      cancel:
+        delay-queue: ${ORDER_CANCEL_DELAY_QUEUE:order.cancel.delay.queue.prod}
+        delay-routing-key: ${ORDER_CANCEL_DELAY_ROUTING_KEY:order.cancel.delay.prod}
+        execute-queue: ${ORDER_CANCEL_EXECUTE_QUEUE:order.cancel.execute.queue.prod}
+        execute-routing-key: ${ORDER_CANCEL_EXECUTE_ROUTING_KEY:order.cancel.execute.prod}
+        ttl-millis: ${ORDER_CANCEL_TTL_MILLIS:900000}
     consumer:
       concurrency: ${ORDER_CONSUMER_CONCURRENCY:4}
       max-concurrency: ${ORDER_CONSUMER_MAX_CONCURRENCY:16}

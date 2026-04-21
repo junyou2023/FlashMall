@@ -65,6 +65,12 @@ app:
       exchange: order.exchange.dev
       queue: order.create.queue.dev
       routing-key: order.create.dev
+      cancel:
+        delay-queue: order.cancel.delay.queue.dev
+        delay-routing-key: order.cancel.delay.dev
+        execute-queue: order.cancel.execute.queue.dev
+        execute-routing-key: order.cancel.execute.dev
+        ttl-millis: 900000
     consumer:
       concurrency: 2
       max-concurrency: 6

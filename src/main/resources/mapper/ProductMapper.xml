@@ -39,6 +39,16 @@
           AND stock >= #{quantity}
     </update>
 
+    <!--
+    订单超时取消后的库存回补
+    注意：这里不做额外条件，前置由订单状态 CREATED -> CANCELED 控制幂等。
+    -->
+    <update id="increaseStock">
+        UPDATE product
+        SET stock = stock + #{quantity}
+        WHERE id = #{id}
+    </update>
+
     <select id="countAllProducts" resultType="long">
         SELECT COUNT(*)
         FROM product

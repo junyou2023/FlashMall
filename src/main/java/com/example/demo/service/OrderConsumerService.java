@@ -6,6 +6,8 @@ import com.example.demo.mapper.ProductMapper;
 import com.example.demo.model.Order;
 import com.example.demo.model.OrderItem;
 import com.example.demo.model.Product;
+import com.example.demo.mq.OrderMessageProducer;
+import com.example.demo.mq.OrderTimeoutCancelMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -29,6 +31,7 @@ public class OrderConsumerService {
     private final RedisOrderGuardService redisOrderGuardService;
     private final ProductCacheService productCacheService;
     private final AsyncDeleteService asyncDeleteService;
+    private final OrderMessageProducer orderMessageProducer;
 
     public OrderConsumerService(OrderMapper orderMapper,
                                 OrderItemMapper orderItemMapper,
@@ -36,7 +39,8 @@ public class OrderConsumerService {
                                 RedisStockService redisStockService,
                                 RedisOrderGuardService redisOrderGuardService,
                                 ProductCacheService productCacheService,
-                                AsyncDeleteService asyncDeleteService) {
+                                AsyncDeleteService asyncDeleteService,
+                                OrderMessageProducer orderMessageProducer) {
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.productMapper = productMapper;
@@ -44,6 +48,7 @@ public class OrderConsumerService {
         this.redisOrderGuardService = redisOrderGuardService;
         this.productCacheService = productCacheService;
         this.asyncDeleteService = asyncDeleteService;
+        this.orderMessageProducer = orderMessageProducer;
     }
 
     /**
@@ -156,6 +161,16 @@ public class OrderConsumerService {
 
                     // 5.4 延迟双删补刀
                     asyncDeleteService.delayedDeleteProductCache(productId, 200);
+
+                    /**
+                     * 5.5 发送“未来触发取消”的延迟消息
+                     *
+                     * 为什么放在 afterCommit？
+                     * 因为只有订单真正落库成功，才有资格进入“超时取消”链路。
+                     */
+                    orderMessageProducer.sendOrderTimeoutCancelDelayMessage(
+                            new OrderTimeoutCancelMessage(userId, productId, quantity, requestId)
+                    );
                 }
             });
 

@@ -15,6 +15,9 @@ public interface OrderMapper {
 
     // 根据 ID 查询订单
     Order findById(Long id);
+    Order findLatestCreatedByUserAndProduct(@Param("userId") Long userId,
+                                            @Param("productId") Long productId);
+    int cancelOrderIfCreated(@Param("id") Long id);
 
     long countAllOrders();
 

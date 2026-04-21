@@ -18,6 +18,24 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findLatestCreatedByUserAndProduct" resultType="Order">
+        SELECT o.id, o.user_id, o.total_price, o.status, o.created_at
+        FROM orders o
+                 JOIN order_item oi ON o.id = oi.order_id
+        WHERE o.user_id = #{userId}
+          AND oi.product_id = #{productId}
+          AND o.status = 'CREATED'
+        ORDER BY o.created_at DESC, o.id DESC
+        LIMIT 1
+    </select>
+
+    <update id="cancelOrderIfCreated">
+        UPDATE orders
+        SET status = 'CANCELED'
+        WHERE id = #{id}
+          AND status = 'CREATED'
+    </update>
+
     <select id="countAllOrders" resultType="long">
         SELECT COUNT(*)
         FROM orders

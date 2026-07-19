@@ -3,6 +3,7 @@ package com.example.demo.config;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,6 +77,15 @@ public class RabbitMQConfig {
 
     @Value("${app.mq.consumer.prefetch:10}")
     private int listenerPrefetch;
+
+    /**
+     * 可观测链路通过 RabbitAdmin 读取队列深度，业务收发消息仍由 RabbitTemplate 和监听容器负责。
+     * 这里显式提供具体类型，是为了让 ObservabilityController 不依赖自动配置 Bean 的声明类型。
+     */
+    @Bean
+    public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
+        return new RabbitAdmin(connectionFactory);
+    }
 
     /**
      * 交换机名称

@@ -5,7 +5,7 @@ spring:
     default: dev
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath:mapper/ProductMapper.xml,classpath:mapper/OrderMapper.xml,classpath:mapper/OrderItemMapper.xml
   type-aliases-package: com.example.demo.model
 
 # ======================== 缓存异步线程池配置（共享基础设施） ========================

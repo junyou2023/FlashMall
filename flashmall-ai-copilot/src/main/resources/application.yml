@@ -1,0 +1,30 @@
+# AI Copilot 与 8080 的核心交易应用独立启动，端口隔离能避免上层能力影响原业务进程。
+server:
+  port: 8081
+
+spring:
+  application:
+    name: flashmall-ai-copilot
+  ai:
+    openai:
+      # 模型供应商信息只从运行环境注入，仓库不保存密钥或私人代理地址。
+      api-key: ${OPENAI_API_KEY}
+      base-url: ${OPENAI_BASE_URL}
+      chat:
+        options:
+          model: ${OPENAI_MODEL}
+
+# 第一阶段只暴露存活检查和静态应用信息，不开放高风险管理端点。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+info:
+  app:
+    name: FlashMall AI Copilot
+    phase: streaming-chat

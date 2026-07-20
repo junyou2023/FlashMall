@@ -1,63 +1,90 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  整体定位：POM 是“如何把源码变成可运行应用”的声明式依赖图，不参与运行时业务调用。
+  第一性原因：Java 只认识 class；Maven 负责确定用哪个 JDK、下载哪些 class、如何测试并打成可执行 JAR。
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <!-- 告诉 Maven 按 4.0.0 模型解释下方坐标、依赖和构建插件。 -->
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- 父 POM 提供 Boot 兼容依赖版本、插件默认值和可执行 JAR 约定，子项目无需逐项维护。 -->
     <parent>
+        <!-- groupId 是组织命名空间，和 Java package 类似，用来避免同名构件冲突。 -->
         <groupId>org.springframework.boot</groupId>
+        <!-- artifactId 精确定位 Spring Boot 官方父 POM。 -->
         <artifactId>spring-boot-starter-parent</artifactId>
+        <!-- 固定 3.4.12，使本应用与 FlashMall 的 Java/Spring 基线一致且构建可复现。 -->
         <version>3.4.12</version>
+        <!-- 不向上查找本地父 pom.xml；该应用保持独立，不把根项目改造成 Maven 多模块。 -->
         <relativePath/>
     </parent>
 
+    <!-- 以下三项组成当前应用的 Maven 唯一坐标：组织 + 名称 + 版本。 -->
     <groupId>com.flashmall</groupId>
     <artifactId>flashmall-ai-copilot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <!-- name/description 供构建报告和制品元数据阅读，不改变 Java 包名。 -->
     <name>flashmall-ai-copilot</name>
     <description>FlashMall 独立 AI 流式对话应用</description>
 
+    <!-- properties 把跨多处使用的版本收口成单一真相，升级时只改一处。 -->
     <properties>
+        <!-- 编译器按 Java 17 语法和字节码目标工作，避免“本机能跑、低版本环境不能跑”。 -->
         <java.version>17</java.version>
+        <!-- Spring AI 使用稳定版 1.1.8；具体组件版本全部由其 BOM 向下传递。 -->
         <spring-ai.version>1.1.8</spring-ai.version>
     </properties>
 
-    <!-- Spring AI BOM 统一管理模型 Starter 与核心组件版本，避免逐个依赖手工对齐。 -->
+    <!-- dependencyManagement 只管理版本，不会自动把依赖加入 classpath。 -->
     <dependencyManagement>
         <dependencies>
+            <!-- BOM 是一张经过官方验证的版本对应表，避免 ChatClient、OpenAI 实现和自动配置彼此不兼容。 -->
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
+                <!-- 引用上方唯一版本属性，保证整棵 Spring AI 依赖树落在 1.1.8。 -->
                 <version>${spring-ai.version}</version>
+                <!-- BOM 本身是 POM 而非 JAR，因此 type 必须声明为 pom。 -->
                 <type>pom</type>
+                <!-- import 把 BOM 内的 dependencyManagement 合并进当前项目。 -->
                 <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
 
+    <!-- dependencies 才真正决定编译、运行和测试 classpath 中有哪些能力。 -->
     <dependencies>
+        <!-- WebFlux 提供 Netty、响应式 Controller、Flux 返回值处理和 SSE 编码器。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
+        <!-- Validation 提供 @Valid/@NotBlank 的实现，让非法问题在进入 Service 前被拒绝。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Actuator 提供 /actuator/health 和 /actuator/info，验证进程是否可服务。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- 新版 OpenAI Starter 同时提供模型实现和自动配置，并由 BOM 补齐 1.1.8 版本。 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
+        <!-- Boot Test 聚合 JUnit、AssertJ、Mockito 和 WebTestClient 测试基础设施。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <!-- test 表示只在测试编译/运行时存在，不进入生产 JAR 的运行依赖。 -->
             <scope>test</scope>
         </dependency>
+        <!-- reactor-test 提供 StepVerifier，用确定步骤验证异步 Flux 的事件顺序与终止信号。 -->
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-test</artifactId>
@@ -65,8 +92,10 @@
         </dependency>
     </dependencies>
 
+    <!-- build 定义“如何产出制品”；业务源码仍由 Maven 默认目录约定发现。 -->
     <build>
         <plugins>
+            <!-- Boot 插件把普通 JAR 重打包为包含依赖和启动器的 java -jar 可执行制品。 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

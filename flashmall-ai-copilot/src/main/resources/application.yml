@@ -1,30 +1,41 @@
-# AI Copilot 与 8080 的核心交易应用独立启动，端口隔离能避免上层能力影响原业务进程。
+# 整体定位：该文件把“会随环境改变的值”留在代码外，由 Spring Environment 在启动时绑定到自动配置 Bean。
+# 第一性原因：代码表达稳定逻辑，配置表达部署差异；二者分开才能用同一个 JAR 安全部署到不同环境。
+
+# server 是 WebFlux/Netty 的监听配置；AI Copilot 与 8080 核心交易应用保持进程和端口隔离。
 server:
-  port: 8081
+  port: 8081 # 客户端请求最终进入此端口，再由路由匹配到 AiChatController。
 
+# spring 命名空间承载 Boot 和 Spring AI 的自动配置输入。
 spring:
+  # 应用名进入日志、指标和管理信息，帮助多进程环境区分服务来源。
   application:
-    name: flashmall-ai-copilot
+    name: flashmall-ai-copilot # 只标识当前 AI 服务，不沿用核心交易应用名称。
+  # Spring AI 读取这些属性创建 OpenAiApi、ChatModel，最终再自动提供 ChatClient.Builder。
   ai:
+    # openai 表示使用 OpenAI 协议实现；base-url 可指向任何兼容该协议的服务。
     openai:
-      # 模型供应商信息只从运行环境注入，仓库不保存密钥或私人代理地址。
-      api-key: ${OPENAI_API_KEY}
-      base-url: ${OPENAI_BASE_URL}
+      api-key: ${OPENAI_API_KEY} # ${...} 强制从进程环境读取密钥；缺失时启动失败，避免匿名错误请求。
+      base-url: ${OPENAI_BASE_URL} # 把供应商地址外置，因此 Java Service 不感知具体厂商或代理。
+      # chat 只配置对话模型；Embedding 等未使用能力不在第一阶段配置。
       chat:
+        # options 会成为每次 ChatClient 请求的默认模型参数，Prompt 仍可在未来按请求覆盖。
         options:
-          model: ${OPENAI_MODEL}
+          model: ${OPENAI_MODEL} # 模型名由部署环境决定，同一份代码可切换兼容模型。
 
-# 第一阶段只暴露存活检查和静态应用信息，不开放高风险管理端点。
+# management 控制 Actuator 管理面；业务接口与管理接口职责不同，但当前共用 8081 端口。
 management:
+  # endpoints.web 决定哪些管理端点能通过 HTTP 被外部访问。
   endpoints:
     web:
-      exposure:
-        include: health,info
+      exposure: # 未列出的 env、beans 等敏感端点默认不暴露。
+        include: health,info # health 判断能否服务，info 展示下方非敏感静态信息。
+  # endpoint 配置单个管理端点的输出细节。
   endpoint:
     health:
-      show-details: never
+      show-details: never # 只返回 UP/DOWN，不向匿名调用者泄漏内部组件、地址或异常。
 
+# info.app 是静态说明数据；暴露它不触发模型调用，也不依赖 API 可用性。
 info:
   app:
-    name: FlashMall AI Copilot
-    phase: streaming-chat
+    name: FlashMall AI Copilot # 人类可读服务名称，对应 spring.application.name 的机器标识。
+    phase: streaming-chat # 明确当前只完成流式对话，防止误以为已具备 RAG 或交易工具。
